@@ -87,7 +87,7 @@
                   '<label>Prisustvo<select name="status">' +
                     ["Online", "Idle", "Do Not Disturb", "Invisible"].map((value) =>
                       '<option value="' + value + '" ' + (p.status === value ? "selected" : "") + '>' +
-                      ({ Online: "Online", Idle: "Odsutan", "Do Not Disturb": "Ne uznemiravaj", Invisible: "Nevidljiv" })[value] +
+                      ({ Online: "Na mreži", Idle: "Odsutan", "Do Not Disturb": "Ne uznemiravaj", Invisible: "Nevidljiv" })[value] +
                       '</option>').join("") + '</select></label>' +
                   '<button type="submit" class="sffV5Primary">Sačuvaj profil</button>' +
                 '</form>' +
