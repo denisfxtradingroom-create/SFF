@@ -153,7 +153,7 @@ function gate(reg = false) {
   root.innerHTML =
     '<div class="gate"><section class="art"><div class="word">' +
     mark +
-    ' SFF</div><div><p class="eyebrow">SIGNAL / ZAJEDNICE</p><h1>Tvoj tim.<br><span>Tvoja frekvencija.</span></h1></div><small>Razgovori · Zajednice · Glas</small></section><section class="gateform"><p class="eyebrow">SFF &nbsp; / &nbsp; PRISTUP</p><h2>' +
+    ' SFF</div><div><p class="eyebrow">SFF / ZAJEDNICE</p><h1>Tvoj tim.<br><span>Tvoja frekvencija.</span></h1></div><small>Razgovori · Zajednice · Glas</small></section><section class="gateform"><p class="eyebrow">SFF &nbsp; / &nbsp; PRISTUP</p><h2>' +
     (reg ? "Napravi nalog" : "Dobro došao nazad.") +
     '</h2><p class="muted">' +
     (reg
@@ -769,7 +769,7 @@ async function act(a, id) {
   if (a === "forgot")
     return modal(
       "Obnova lozinke",
-      form("forgot", field("email", "Email", "", "email"), "Pošalji kod"),
+      form("forgot", field("email", "E-pošta", "", "email"), "Pošalji kod"),
     );
   if (a === "verifyResend") {
     await api("verifySend");
