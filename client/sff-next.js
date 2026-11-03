@@ -67,6 +67,8 @@
             '</div>' +
           '</div>' +
           '<div class="sffV5ProfileBody">' +
+            '<button type="button" data-wall-profile="' + target +
+              '" class="sffV5WallButton">◉ ' + (own ? "Moj zid · Sve objave" : "Pogledaj zid · Objave korisnika") + '</button>' +
             '<section class="sffV5Panel"><div class="sffV5Label">O MENI</div><p>' +
               escape(p.about || "Još nema opisa profila.") + '</p></section>' +
             (p.custom ? '<section class="sffV5Panel"><div class="sffV5Label">STATUS</div><p>' +
