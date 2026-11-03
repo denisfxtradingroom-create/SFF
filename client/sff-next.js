@@ -24,6 +24,8 @@
       toast.timer = setTimeout(() => { node.textContent = ""; }, 5000);
     }
   };
+  const dlgEl = document.querySelector("#dialog");
+  dlgEl?.addEventListener("close", () => dlgEl.classList.remove("sffProfileDialog"));
   const statusClass = (p) =>
     p.displayStatus === "Online" ? "online" :
     p.displayStatus === "Idle" ? "idle" :
