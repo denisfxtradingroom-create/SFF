@@ -222,10 +222,10 @@ async function action(a, b, u, res, req) {
       demand(email === emailConfirm, "Email adrese se ne podudaraju.", 400);
       demand(b.password === b.passwordConfirm, "Lozinke se ne podudaraju.", 400);
       demand(/^\p{L}[\p{L} .'-]*$/u.test(firstName) && /^\p{L}[\p{L} .'-]*$/u.test(lastName), "Ime i prezime mogu sadržati samo slova, razmake, apostrof, tačku i crticu.", 400);
-      demand(!user, "Username already taken — ovo korisničko ime je već zauzeto.", 409);
+      demand(!user, "Ovo korisničko ime je već zauzeto.", 409);
       demand(
         !await one("select id from users where lower(name)=lower(?)", displayName),
-        "Name already taken — ovo ime i prezime je već zauzeto.",
+        "Ovo ime i prezime su već zauzeti.",
         409,
       );
       demand(!await one("select id from users where email=?", email), "Za tu email adresu već postoji nalog.", 409);
@@ -299,7 +299,7 @@ async function action(a, b, u, res, req) {
     const displayName = str(b.name, 80);
     demand(
       !await one("select id from users where lower(name)=lower(?) and id!=?", displayName, u),
-      "Name already taken — ovo ime i prezime je već zauzeto.",
+      "Ovo ime i prezime su već zauzeti.",
       409,
     );
     await run(
