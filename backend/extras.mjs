@@ -22,7 +22,8 @@ export async function extras({
  CREATE TABLE IF NOT EXISTS alerts(uid INTEGER, scope TEXT, policy TEXT, PRIMARY KEY(uid,scope));
  CREATE TABLE IF NOT EXISTS room_meta(room INTEGER PRIMARY KEY REFERENCES rooms ON DELETE CASCADE, category TEXT DEFAULT '');
  CREATE TABLE IF NOT EXISTS artwork(scope TEXT, id INTEGER, slot TEXT, mime TEXT, bytes BLOB, PRIMARY KEY(scope,id,slot));
- CREATE TABLE IF NOT EXISTS timeouts(space INTEGER REFERENCES spaces ON DELETE CASCADE, uid INTEGER, until INTEGER, PRIMARY KEY(space,uid));`);
+ CREATE TABLE IF NOT EXISTS timeouts(space INTEGER REFERENCES spaces ON DELETE CASCADE, uid INTEGER, until INTEGER, PRIMARY KEY(space,uid));
+ CREATE TABLE IF NOT EXISTS chat_deletions(uid INTEGER, room INTEGER REFERENCES rooms ON DELETE CASCADE, deleted_through INTEGER DEFAULT 0, time INTEGER, PRIMARY KEY(uid,room));`);
 
   const configured = () => Boolean(process.env.RESEND_API_KEY && process.env.SFF_MAIL_FROM);
 
@@ -62,6 +63,66 @@ export async function extras({
       },
     alerts: await all("select scope,policy from alerts where uid=?", u),
   });
+
+  async function canSeeUser(u, target) {
+    if (u === target) return true;
+    if (
+      await one(
+        "select 1 from friends where accepted=1 and ((sender=? and target=?) or (sender=? and target=?))",
+        u,
+        target,
+        target,
+        u,
+      )
+    ) return true;
+    if (
+      await one(
+        "select 1 from members a join members b on a.space=b.space where a.uid=? and b.uid=? limit 1",
+        u,
+        target,
+      )
+    ) return true;
+    return Boolean(
+      await one(
+        "select 1 from participants a join participants b on a.room=b.room where a.uid=? and b.uid=? limit 1",
+        u,
+        target,
+      ),
+    );
+  }
+
+  async function detailedPush(r, event) {
+    const mentions = event.mentions || [];
+    for (const s of sockets) {
+      if (s.readyState !== 1 || !(await roomFor(r.id, s.uid))) continue;
+      let notify = s.uid !== event.uid;
+      if (notify) {
+        const person = await one("select username,status from users where id=?", s.uid);
+        if (person?.status === "Do Not Disturb") notify = false;
+        const roomAlert = await one("select policy from alerts where uid=? and scope=?", s.uid, "r" + r.id);
+        const spaceAlert = r.space
+          ? await one("select policy from alerts where uid=? and scope=?", s.uid, "s" + r.space)
+          : null;
+        const policy = roomAlert?.policy || spaceAlert?.policy || "all";
+        if (policy === "off") notify = false;
+        if (policy === "mentions") {
+          const role = (await roomFor(r.id, s.uid))?.role?.toLowerCase();
+          notify = mentions.some((n) => [person?.username, "everyone", role].filter(Boolean).includes(n));
+        }
+      }
+      s.send(JSON.stringify({ ...event, room: r.id, notify }));
+    }
+  }
+
+  function mediaMime(bytes, filename) {
+    const lower = String(filename || "").toLowerCase();
+    if (bytes.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") return "image/png";
+    if (bytes[0] === 255 && bytes[1] === 216) return "image/jpeg";
+    if (bytes.subarray(0, 3).toString() === "GIF") return "image/gif";
+    if (bytes.length > 12 && bytes.subarray(4, 8).toString() === "ftyp" && lower.endsWith(".mp4")) return "video/mp4";
+    if ((bytes.subarray(0, 3).toString() === "ID3" || (bytes[0] === 255 && (bytes[1] & 0xe0) === 0xe0)) && lower.endsWith(".mp3")) return "audio/mpeg";
+    return "application/octet-stream";
+  }
 
   async function handle(a, b, u, ip) {
     if (a === "capabilities") return { mail: configured() };
@@ -129,6 +190,50 @@ export async function extras({
     }
 
     if (!u) return;
+
+    if (a === "hiddenChats") {
+      return await all(
+        "select d.room from chat_deletions d join participants p on p.room=d.room and p.uid=d.uid where d.uid=? and coalesce((select max(id) from messages where room=d.room),0)<=d.deleted_through",
+        u,
+      );
+    }
+
+    if (a === "deleteChat") {
+      const r = await roomFor(Number(b.room), u);
+      demand(r && !r.space && ["dm", "group"].includes(r.kind), "Razgovor nije dostupan.", 404);
+      const latest = (await one("select coalesce(max(id),0) id from messages where room=?", r.id))?.id || 0;
+      await run(
+        "insert into chat_deletions(uid,room,deleted_through,time) values(?,?,?,?) on conflict(uid,room) do update set deleted_through=max(deleted_through,excluded.deleted_through),time=excluded.time",
+        u,
+        r.id,
+        latest,
+        Date.now(),
+      );
+      await run("delete from reads where room=? and uid=?", r.id, u);
+      await push({ type: "state" }, (s) => s.uid === u);
+      return {};
+    }
+
+    if (a === "chatInfo") {
+      const r = await roomFor(Number(b.room), u);
+      demand(r && !r.space, "Razgovor nije dostupan.", 404);
+      const participants = await all(
+        "select u.id,u.username,u.name,u.about,u.status,u.custom from participants p join users u on u.id=p.uid where p.room=? and p.uid!=?",
+        r.id,
+        u,
+      );
+      return { id: r.id, kind: r.kind, name: r.name, participants };
+    }
+
+    if (a === "userProfile") {
+      const target = b.id
+        ? Number(b.id)
+        : (await one("select id from users where username=?", str(b.username, 30).toLowerCase()))?.id;
+      demand(target && (await canSeeUser(u, target)), "Profil nije dostupan.", 404);
+      const p = await one("select id,username,name,about,status,custom from users where id=?", target);
+      if (p?.status === "Invisible" && target !== u) p.status = "Offline";
+      return p;
+    }
 
     if (a === "privacy") {
       await run(
@@ -224,6 +329,110 @@ export async function extras({
         if (s.uid === b.target && s.voice && (await roomFor(s.voice, u))?.space === b.space) s.close();
       }
       return {};
+    }
+
+    if (a === "history") {
+      const r = await roomFor(b.room, u);
+      if (!r || r.space) return;
+      const deleted = await one("select deleted_through from chat_deletions where uid=? and room=?", u, r.id);
+      if (!deleted) return;
+      const rows = (
+        await all(
+          "select m.id,m.uid,m.body,m.parent,m.time,m.pinned,m.edited,m.file,m.mime,u.name,u.username from messages m join users u on u.id=m.uid where room=? and m.id>? and ((?=0 and not exists(select 1 from thread_posts t where t.msg=m.id)) or m.id=? or exists(select 1 from thread_posts t where t.msg=m.id and t.root=?)) and m.id<? and instr(lower(m.body),lower(?))>0 and m.pinned>=? order by m.id desc limit 50",
+          r.id,
+          deleted.deleted_through,
+          Number(b.thread) || 0,
+          Number(b.thread) || 0,
+          Number(b.thread) || 0,
+          Number(b.before) || Number.MAX_SAFE_INTEGER,
+          str(b.search || "", 120, 0),
+          b.pins ? 1 : 0,
+        )
+      ).reverse();
+      const out = [];
+      for (const m of rows) {
+        const thread = await one("select count(*) n from thread_posts where root=? and msg>?", m.id, deleted.deleted_through);
+        out.push({
+          ...m,
+          threadCount: thread?.n || 0,
+          reactions: await all("select emoji,count(*) n from reactions where msg=? group by emoji", m.id),
+        });
+      }
+      return out;
+    }
+
+    if (a === "post") {
+      demand(process.env.SFF_REQUIRE_VERIFIED_EMAIL !== "1" || (await one("select verified from preferences where uid=?", u))?.verified, "Potvrdi email adresu pre korišćenja aplikacije.", 403);
+      const r = await roomFor(b.room, u);
+      demand(r);
+      demand(!r.space || r.canPost);
+      demand(
+        !r.space ||
+          !(await one("select 1 from timeouts where space=? and uid=? and until>?", r.space, u, Date.now())),
+        "Privremeno utišan nalog.",
+      );
+      limit("post" + u, 65);
+      demand(r.kind !== "announcement" || r.role !== "Member");
+      const body = str(b.body || "", 4000, 0);
+      demand(body || b.file, "Poruka je prazna.", 400);
+      if (b.parent) demand(await one("select id from messages where id=? and room=?", b.parent, r.id));
+      if (b.thread)
+        demand(
+          await one(
+            "select id from messages where id=? and room=? and not exists(select 1 from thread_posts where msg=messages.id)",
+            b.thread,
+            r.id,
+          ),
+        );
+
+      let bytes = null,
+        file = null,
+        mime = null;
+      if (b.file) {
+        limit("upload:" + u, 10);
+        file = str(b.file, 120).replace(/[^\p{L}\p{N} ._-]/gu, "_");
+        bytes = Buffer.from(str(b.data, 7e6), "base64");
+        demand(bytes.length && bytes.length <= 5 * 1024 * 1024, "Najviše 5 MB.", 400);
+        mime = mediaMime(bytes, file);
+        demand(
+          ["image/png", "image/jpeg", "image/gif", "video/mp4", "audio/mpeg", "application/octet-stream"].includes(mime),
+          "Nepodržan fajl.",
+          400,
+        );
+      }
+
+      const id = await insert(
+        "insert into messages(room,uid,body,parent,time,file,mime,bytes) values(?,?,?,?,?,?,?,?)",
+        r.id,
+        u,
+        body,
+        b.parent || null,
+        Date.now(),
+        file,
+        mime,
+        bytes,
+      );
+      if (b.thread) await run("insert into thread_posts values(?,?)", id, b.thread);
+      const sender = await one("select name,username from users where id=?", u);
+      const mentions = [...body.matchAll(/@([a-z0-9_]+)/gi)]
+        .map((m) => m[1].toLowerCase())
+        .filter(
+          (n) =>
+            !["everyone", "administrator", "moderator", "member"].includes(n) ||
+            r.role === "Administrator" ||
+            r.role === "Moderator",
+        );
+      await detailedPush(r, {
+        type: "message",
+        id,
+        uid: u,
+        name: sender?.name || sender?.username || "Korisnik",
+        body: body.slice(0, 120),
+        file,
+        mime,
+        mentions,
+      });
+      return { id };
     }
   }
 
