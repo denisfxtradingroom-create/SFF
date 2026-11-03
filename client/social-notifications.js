@@ -334,7 +334,7 @@
       checkbox("sounds", "Zvuk u aplikaciji kada stigne poruka ili zahtev") +
       '<label>Melodija' +
       '<select data-social-setting="soundTheme">' +
-      [["classic", "SFF Classic"], ["soft", "SFF Soft"], ["digital", "SFF Digital"]]
+      [["classic", "SFF klasični"], ["soft", "SFF nežni"], ["digital", "SFF digitalni"]]
       .map(([value, label]) => '<option value="' + value + '" ' +
         (get("soundTheme") === value ? "selected" : "") + '>' + label + '</option>')
       .join("") + '</select></label>' +
