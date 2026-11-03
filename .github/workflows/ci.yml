@@ -19,4 +19,5 @@ jobs:
       - run: node --check client/enhance.js
       - run: node --check client/notify-init.js
       - run: node --check client/sff-next.js
+      - run: node --check client/social-notifications.js
       - run: npm test
