@@ -1,13 +1,13 @@
 {
   "name": "sff-signal",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "test": "node tests/integration.mjs && node tests/email.mjs",
+    "test": "node tests/integration.mjs && node tests/email.mjs && node tests/advanced.mjs",
     "start": "node backend/server.mjs"
   },
   "dependencies": {
