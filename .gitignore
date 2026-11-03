@@ -1,0 +1,18 @@
+.env
+sff-data/
+*.p12
+*.jks
+*.keystore
+SFF-Setup.exe
+SFF-Android.apk
+*.idsig
+.DS_Store
+Thumbs.db
+
+# Local helper/runtime binaries are downloaded or reconstructed by CI.
+telefon/
+windows/WebView2/*.dll
+windows/mark.ico
+
+node_modules/
+backend/vendor/
