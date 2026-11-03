@@ -169,7 +169,10 @@ async function state(u) {
     ...(await extra.options(u)),
     online: onlineIds,
     art: await all(
-      "select scope,id,slot from artwork where (scope='user' and (id=? or id in(select uid from members where space in(select space from members where uid=?)) or id in(select uid from participants where room in(select room from participants where uid=?)))) or (scope='space' and id in(select space from members where uid=?))",
+      "select scope,id,slot from artwork where (scope='user' and (id=? or id in(select uid from members where space in(select space from members where uid=?)) or id in(select uid from participants where room in(select room from participants where uid=?))) or id in(select case when sender=? then target else sender end from friends where accepted=1 and (sender=? or target=?)))) or (scope='space' and id in(select space from members where uid=?))",
+      u,
+      u,
+      u,
       u,
       u,
       u,
@@ -734,7 +737,27 @@ const server = http.createServer(async (req, res) => {
           "; filename*=UTF-8''" +
           encodeURIComponent(m.file),
       );
-      return res.end((await one("select bytes from messages where id=?", id)).bytes);
+      const data = (await one("select bytes from messages where id=?", id)).bytes;
+      const size = data.length;
+      res.setHeader("Accept-Ranges", "bytes");
+      const header = req.headers.range;
+      if (header) {
+        const match = /^bytes=(\d*)-(\d*)$/.exec(header);
+        demand(match && (match[1] || match[2]), "Neispravan raspon.", 416);
+        let start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+        let end = match[2] && match[1] ? Math.min(size - 1, Number(match[2])) : size - 1;
+        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start >= size || end < start) {
+          res.statusCode = 416;
+          res.setHeader("Content-Range", "bytes */" + size);
+          return res.end();
+        }
+        res.statusCode = 206;
+        res.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + size);
+        res.setHeader("Content-Length", String(end - start + 1));
+        return res.end(data.subarray(start, end + 1));
+      }
+      res.setHeader("Content-Length", String(size));
+      return res.end(data);
     }
     const f = path === "/" ? "index.html" : path.slice(1);
     demand(
