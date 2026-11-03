@@ -51,6 +51,35 @@ try {
     });
   }
 
+  const invalid = account();
+  const duplicate = {
+    username: "newuser", email: "newuser@example.test",
+    emailConfirm: "newuser@example.test",
+    password: "advanced-test-password",
+    passwordConfirm: "advanced-test-password",
+    firstName: "denis", lastName: "Test",
+  };
+  await call(invalid, "register", duplicate, 409);
+  await call(invalid, "register", { ...duplicate, username: "denis",
+    firstName: "Another", lastName: "Person" }, 409);
+  await call(B, "profile", { name: "denis Test", about: "", status: "Online", custom: "" }, 409);
+  const loginBody = JSON.stringify({ username: "denis",
+    password: "advanced-test-password", remember: false });
+  const temporary = await fetch(origin + "/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: loginBody,
+  });
+  assert.equal(temporary.status, 200);
+  assert(!temporary.headers.get("set-cookie")?.includes("Max-Age="));
+  const permanent = await fetch(origin + "/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: "denis", password: "advanced-test-password", remember: true }),
+  });
+  assert.equal(permanent.status, 200);
+  assert(permanent.headers.get("set-cookie")?.includes("Max-Age=7776000"));
+
   await call(A, "friend", { username: "ana" });
   await call(B, "accept", { username: "denis" });
   const { id: dm } = await call(A, "dm", { username: "ana" });
@@ -65,11 +94,13 @@ try {
 
   await call(B, "deleteChat", { room: dm });
   assert((await call(B, "hiddenChats")).some((x) => x.room === dm));
+  assert(!(await call(B, "state")).rooms.some((x) => x.id === dm));
   assert.equal((await call(B, "history", { room: dm })).length, 0);
   assert.equal((await call(A, "history", { room: dm }))[0].body, "stara poruka");
 
   await call(A, "post", { room: dm, body: "nova poruka" });
   assert(!(await call(B, "hiddenChats")).some((x) => x.room === dm));
+  assert((await call(B, "state")).rooms.some((x) => x.id === dm));
   const after = await call(B, "history", { room: dm });
   assert.deepEqual(after.map((m) => m.body), ["nova poruka"]);
 
@@ -96,7 +127,31 @@ try {
     "video/mp4",
   );
 
-  console.log("SFF advanced chat/media checks passed");
+  const webm = Buffer.concat([
+    Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(20),
+  ]);
+  const voice = await call(A, "post", {
+    room: dm, file: "glasovna.webm", data: webm.toString("base64"),
+  });
+  const part = await fetch(origin + "/media/" + voice.id, {
+    headers: { Cookie: B.cookie, Range: "bytes=0-3" },
+  });
+  assert.equal(part.status, 206);
+  assert.equal(part.headers.get("Content-Type"), "audio/webm");
+  assert.equal(part.headers.get("Content-Range"), "bytes 0-3/" + webm.length);
+  assert(part.headers.get("Content-Disposition").startsWith("inline"));
+  assert.equal((await part.arrayBuffer()).byteLength, 4);
+
+  const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZuoAAAAASUVORK5CYII=";
+  await call(A, "art", { scope: "user", slot: "avatar", data: png });
+  const profile = await call(B, "userProfile", { username: "denis" });
+  assert.equal(profile.avatar, true);
+  assert.equal(profile.banner, false);
+  assert.equal((await fetch(origin + "/art/user/1/avatar", {
+    headers: { Cookie: B.cookie },
+  })).status, 200);
+
+  console.log("SFF 0.5 advanced tests passed: unique names, remember me, chat delete, profiles, voice MIME/ranges");
 } finally {
   server?.kill();
 }

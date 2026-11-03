@@ -26,6 +26,9 @@ export async function extras({
  CREATE TABLE IF NOT EXISTS chat_deletions(uid INTEGER, room INTEGER REFERENCES rooms ON DELETE CASCADE, deleted_through INTEGER DEFAULT 0, time INTEGER, PRIMARY KEY(uid,room));`);
 
   const configured = () => Boolean(process.env.RESEND_API_KEY && process.env.SFF_MAIL_FROM);
+  // A real sender automatically enables verification even when an older
+  // Render deployment still has SFF_REQUIRE_VERIFIED_EMAIL=0.
+  const requireEmail = () => configured() || process.env.SFF_REQUIRE_VERIFIED_EMAIL === "1";
 
   async function sendCode(uid, email, kind) {
     const token = randomBytes(18).toString("hex");
@@ -55,7 +58,7 @@ export async function extras({
 
   const options = async (u) => ({
     mail: configured(),
-    requireVerifiedEmail: process.env.SFF_REQUIRE_VERIFIED_EMAIL === "1",
+    requireVerifiedEmail: requireEmail(),
     preferences:
       (await one("select verified,requests from preferences where uid=?", u)) || {
         verified: 0,
@@ -120,6 +123,9 @@ export async function extras({
     if (bytes[0] === 255 && bytes[1] === 216) return "image/jpeg";
     if (bytes.subarray(0, 3).toString() === "GIF") return "image/gif";
     if (bytes.length > 12 && bytes.subarray(4, 8).toString() === "ftyp" && lower.endsWith(".mp4")) return "video/mp4";
+    if (bytes.length > 12 && bytes.subarray(4, 8).toString() === "ftyp" && lower.endsWith(".m4a")) return "audio/mp4";
+    if (bytes.subarray(0, 4).toString("hex") === "1a45dfa3" && lower.endsWith(".webm")) return "audio/webm";
+    if (bytes.subarray(0, 4).toString() === "OggS" && lower.endsWith(".ogg")) return "audio/ogg";
     if ((bytes.subarray(0, 3).toString() === "ID3" || (bytes[0] === 255 && (bytes[1] & 0xe0) === 0xe0)) && lower.endsWith(".mp3")) return "audio/mpeg";
     return "application/octet-stream";
   }
@@ -209,7 +215,12 @@ export async function extras({
         latest,
         Date.now(),
       );
-      await run("delete from reads where room=? and uid=?", r.id, u);
+      await run(
+        "insert into reads(room,uid,last) values(?,?,?) on conflict(room,uid) do update set last=max(last,excluded.last)",
+        r.id,
+        u,
+        latest,
+      );
       await push({ type: "state" }, (s) => s.uid === u);
       return {};
     }
@@ -231,8 +242,16 @@ export async function extras({
         : (await one("select id from users where username=?", str(b.username, 30).toLowerCase()))?.id;
       demand(target && (await canSeeUser(u, target)), "Profil nije dostupan.", 404);
       const p = await one("select id,username,name,about,status,custom from users where id=?", target);
-      if (p?.status === "Invisible" && target !== u) p.status = "Offline";
-      return p;
+      const artwork = await all("select slot from artwork where scope='user' and id=?", target);
+      const connected = [...sockets].some((s) => s.uid === target && s.readyState === 1);
+      const visible = p.status !== "Invisible" || target === u;
+      return {
+        ...p,
+        online: visible && connected,
+        displayStatus: !visible || !connected ? "Offline" : p.status,
+        avatar: artwork.some((a) => a.slot === "avatar"),
+        banner: artwork.some((a) => a.slot === "banner"),
+      };
     }
 
     if (a === "privacy") {
@@ -395,7 +414,7 @@ export async function extras({
         demand(bytes.length && bytes.length <= 5 * 1024 * 1024, "Najviše 5 MB.", 400);
         mime = mediaMime(bytes, file);
         demand(
-          ["image/png", "image/jpeg", "image/gif", "video/mp4", "audio/mpeg", "application/octet-stream"].includes(mime),
+          ["image/png", "image/jpeg", "image/gif", "video/mp4", "audio/mpeg", "audio/webm", "audio/ogg", "audio/mp4", "application/octet-stream"].includes(mime),
           "Nepodržan fajl.",
           400,
         );
@@ -436,5 +455,5 @@ export async function extras({
     }
   }
 
-  return { options, handle, configured };
+  return { options, handle, configured, requireEmail };
 }

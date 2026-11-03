@@ -36,7 +36,7 @@ const str = (v, max, min = 1) => {
   );
   return v.trim();
 };
-const profile = "id,username,name,about,status,custom";
+const profile = "id,username,email,name,about,status,custom";
 const member = (s, u) => one("select * from members where space=? and uid=?", s, u);
 const blocked = (a, b) =>
   one(
@@ -121,6 +121,10 @@ async function state(u) {
     const r = await roomFor(x.id, u);
     if (!r) continue;
     const latest = await one("select max(id) latest from messages where room=?", r.id);
+    const deleted = !r.space
+      ? await one("select deleted_through from chat_deletions where room=? and uid=?", r.id, u)
+      : null;
+    if (deleted && (latest?.latest || 0) <= deleted.deleted_through) continue;
     let roomName = r.name;
     if (r.kind === "dm") {
       const names = await all(
@@ -131,11 +135,12 @@ async function state(u) {
       roomName = names.map((x) => x.name).join(", ");
     }
     const unread = await one(
-      "select count(*) n from messages where room=? and uid!=? and id>coalesce((select last from reads where room=? and uid=?),0)",
+      "select count(*) n from messages where room=? and uid!=? and id>max(coalesce((select last from reads where room=? and uid=?),0),?)",
       r.id,
       u,
       r.id,
       u,
+      deleted?.deleted_through || 0,
     );
     const meta = await one("select category from room_meta where room=?", r.id);
     rooms.push({
@@ -164,7 +169,10 @@ async function state(u) {
     ...(await extra.options(u)),
     online: onlineIds,
     art: await all(
-      "select scope,id,slot from artwork where (scope='user' and (id=? or id in(select uid from members where space in(select space from members where uid=?)) or id in(select uid from participants where room in(select room from participants where uid=?)))) or (scope='space' and id in(select space from members where uid=?))",
+      "select scope,id,slot from artwork where (scope='user' and (id=? or id in(select uid from members where space in(select space from members where uid=?)) or id in(select uid from participants where room in(select room from participants where uid=?)) or id in(select case when sender=? then target else sender end from friends where accepted=1 and (sender=? or target=?)))) or (scope='space' and id in(select space from members where uid=?))",
+      u,
+      u,
+      u,
       u,
       u,
       u,
@@ -210,9 +218,14 @@ async function action(a, b, u, res, req) {
       demand(email === emailConfirm, "Email adrese se ne podudaraju.", 400);
       demand(b.password === b.passwordConfirm, "Lozinke se ne podudaraju.", 400);
       demand(/^\p{L}[\p{L} .'-]*$/u.test(firstName) && /^\p{L}[\p{L} .'-]*$/u.test(lastName), "Ime i prezime mogu sadržati samo slova, razmake, apostrof, tačku i crticu.", 400);
-      demand(!user, "To korisničko ime je već zauzeto.", 409);
+      demand(!user, "Username already taken — ovo korisničko ime je već zauzeto.", 409);
+      demand(
+        !await one("select id from users where lower(name)=lower(?)", displayName),
+        "Name already taken — ovo ime i prezime je već zauzeto.",
+        409,
+      );
       demand(!await one("select id from users where email=?", email), "Za tu email adresu već postoji nalog.", 409);
-      demand(process.env.SFF_REQUIRE_VERIFIED_EMAIL !== "1" || extra.configured(), "Email servis nije konfigurisan. Registracija trenutno nije dostupna.", 503);
+      demand(!extra.requireEmail() || extra.configured(), "Email servis nije konfigurisan. Registracija trenutno nije dostupna.", 503);
       const salt = key(),
         hash = (await derive(pw, salt, 64)).toString("hex");
       await run(
@@ -234,26 +247,28 @@ async function action(a, b, u, res, req) {
         401,
       );
     }
+    const stayLoggedIn = b.remember !== false && b.remember !== "0";
     const t = key();
     await run(
       "insert into sessions values(?,?,?)",
       digest(t),
       user.id,
-      Date.now() + 30 * 86400000,
+      Date.now() + (stayLoggedIn ? 90 : 0.5) * 86400000,
     );
     res.setHeader(
       "Set-Cookie",
       "sff=" +
         t +
-        "; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000" +
+        "; HttpOnly; SameSite=Strict; Path=/" +
+        (stayLoggedIn ? "; Max-Age=7776000" : "") +
         (process.env.SFF_HTTPS === "1" ? "; Secure" : ""),
     );
-    if (a === "register" && process.env.SFF_REQUIRE_VERIFIED_EMAIL === "1")
+    if (a === "register" && extra.requireEmail())
       await extra.handle("verifySend", {}, user.id, ip);
     return await state(user.id);
   }
   demand(u, "Prijavi se.", 401);
-  if (process.env.SFF_REQUIRE_VERIFIED_EMAIL === "1" && !(await one("select verified from preferences where uid=?", u))?.verified)
+  if (extra.requireEmail() && !(await one("select verified from preferences where uid=?", u))?.verified)
     demand(["state", "logout"].includes(a), "Potvrdi email adresu pre korišćenja aplikacije.", 403);
   const roleResult = await policy.handle(a, b, u);
   if (roleResult !== undefined) {
@@ -277,9 +292,15 @@ async function action(a, b, u, res, req) {
     demand(
       ["Online", "Idle", "Do Not Disturb", "Invisible"].includes(b.status),
     );
+    const displayName = str(b.name, 80);
+    demand(
+      !await one("select id from users where lower(name)=lower(?) and id!=?", displayName, u),
+      "Name already taken — ovo ime i prezime je već zauzeto.",
+      409,
+    );
     await run(
       "update users set name=?,about=?,status=?,custom=? where id=?",
-      str(b.name, 80),
+      displayName,
       str(b.about, 400, 0),
       b.status,
       str(b.custom, 100, 0),
@@ -712,11 +733,31 @@ const server = http.createServer(async (req, res) => {
       res.setHeader("Content-Type", m.mime);
       res.setHeader(
         "Content-Disposition",
-        (m.mime.startsWith("image/") ? "inline" : "attachment") +
+        (/^(image\/|audio\/|video\/)/.test(m.mime) ? "inline" : "attachment") +
           "; filename*=UTF-8''" +
           encodeURIComponent(m.file),
       );
-      return res.end((await one("select bytes from messages where id=?", id)).bytes);
+      const data = (await one("select bytes from messages where id=?", id)).bytes;
+      const size = data.length;
+      res.setHeader("Accept-Ranges", "bytes");
+      const header = req.headers.range;
+      if (header) {
+        const match = /^bytes=(\d*)-(\d*)$/.exec(header);
+        demand(match && (match[1] || match[2]), "Neispravan raspon.", 416);
+        let start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+        let end = match[2] && match[1] ? Math.min(size - 1, Number(match[2])) : size - 1;
+        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start >= size || end < start) {
+          res.statusCode = 416;
+          res.setHeader("Content-Range", "bytes */" + size);
+          return res.end();
+        }
+        res.statusCode = 206;
+        res.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + size);
+        res.setHeader("Content-Length", String(end - start + 1));
+        return res.end(data.subarray(start, end + 1));
+      }
+      res.setHeader("Content-Length", String(size));
+      return res.end(data);
     }
     const f = path === "/" ? "index.html" : path.slice(1);
     demand(

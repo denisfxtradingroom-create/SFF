@@ -11,7 +11,7 @@ const dir = mkdtempSync(join(tmpdir(), "sff-test-")),
 let server, origin;
 async function boot() {
   server = spawn(process.execPath, [entry], {
-    env: { ...process.env, PORT: "0", HOST: "127.0.0.1", SFF_DATA: dir },
+    env: { ...process.env, PORT: "0", HOST: "127.0.0.1", SFF_DATA: dir, SFF_DEBUG: "1" },
     stdio: ["ignore", "pipe", "inherit"],
   });
   const [log] = await once(server.stdout, "data");
