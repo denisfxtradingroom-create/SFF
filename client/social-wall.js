@@ -15,6 +15,7 @@
   let root=null, opened=false, account=null, feed=[], author=null, authorInfo=null;
   let composerImage=null, composerPreview=null, loading=false, busy=false;
   let commentOpen=new Set(), sharePost=null, changeTimer=null, lastHash=null;
+  let viewGeneration=0;
   const time = (stamp) => new Date(Number(stamp)).toLocaleString("sr-RS", {
     day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"
   });
@@ -96,16 +97,19 @@
   async function load(reset=true){
     if(loading||!opened)return;
     loading=true;
+    const generation=viewGeneration;
+    const currentAuthor=author;
     const previous=feed;
     try{
       const before=reset?undefined:feed.at(-1)?.id;
-      const response=await api("wallFeed",{user:author??undefined,before});
+      const response=await api("wallFeed",{user:currentAuthor??undefined,before});
+      if(generation!==viewGeneration||!opened)return;
       feed=reset?response.posts:[...previous,...response.posts];
       draw();
       const more=document.querySelector("#sffWallMore");
       if(more)more.hidden=response.posts.length<16;
-    }catch(err){if(reset){feed=[];draw()}showError(err)}
-    finally{loading=false}
+    }catch(err){if(generation===viewGeneration){if(reset){feed=[];draw()}showError(err)}}
+    finally{if(generation===viewGeneration)loading=false}
   }
   function postCard(p){
     const own=p.uid===account.me.id;
@@ -168,6 +172,7 @@
       p=requested===user.me.id?user.me:await api("userProfile",{id:requested});
     }
     author=requested;authorInfo=p;
+    viewGeneration++;loading=false;
     feed=[];commentOpen.clear();composerImage=null;composerPreview=null;
     opened=true;ensure().hidden=false;document.body.classList.add("sffWallOpen");
     shell();await load();
@@ -183,6 +188,7 @@
     el?.scrollIntoView({block:"center",behavior:"smooth"});
   }
   function close(){
+    viewGeneration++;loading=false;
     opened=false;ensure().hidden=true;document.body.classList.remove("sffWallOpen");
     const share=document.querySelector("#sffWallShare");
     if(share?.open)share.close();
