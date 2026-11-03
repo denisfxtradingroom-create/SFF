@@ -469,10 +469,22 @@ async function action(a, b, u, res, req) {
       );
       demand(!relation, "Zahtev već postoji.", 409);
       await run("insert into friends(sender,target) values(?,?)", u, p);
+      const sender = await one("select name,username from users where id=?", u);
+      await push(
+        { type: "friend_request", uid: u, name: sender.name,
+          username: sender.username, at: Date.now() },
+        (s) => s.uid === p,
+      );
     }
     if (a === "accept") {
-      demand(relation?.target === u);
+      demand(relation?.target === u && !relation.accepted, "Zahtev više nije na čekanju.", 409);
       await run("update friends set accepted=1 where sender=? and target=?", p, u);
+      const recipient = await one("select name,username from users where id=?", u);
+      await push(
+        { type: "friend_accepted", uid: u, name: recipient.name,
+          username: recipient.username, at: Date.now() },
+        (s) => s.uid === p,
+      );
     }
     if (a === "dm") {
       demand(relation?.accepted);

@@ -1,0 +1,52 @@
+/* SFF web-only notification center, toast, sounds & friend request indicators */
+.sffFriendPending{color:#ffe1ea!important;border:1px solid #ed486d!important;background:#5b2939!important}
+.sffSocialCenterButton{position:relative;display:flex!important;align-items:center;gap:8px;min-height:42px;text-align:left;width:100%;padding:8px 12px!important}
+.sffSocialCenterButton img{width:24px;height:24px;object-fit:contain}
+.sffSocialCenterButton span:nth-child(2){flex:1}
+.sffSocialCounter{position:absolute;right:4px;top:0;min-width:17px;height:17px;border-radius:20px;display:grid;place-items:center;padding:1px 4px;box-sizing:content-box;background:#f1375e;color:#fff;font-size:10px;font-weight:800;border:2px solid #18141b}
+.sffSocialToast{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:12px;width:min(390px,calc(100vw - 24px));min-height:64px;z-index:10005;background:#28202b!important;color:#fff!important;border:1px solid #db526e!important;border-radius:17px!important;display:flex;align-items:center;gap:11px;text-align:left;box-sizing:border-box;padding:12px!important;box-shadow:0 18px 55px #000b}
+.sffSocialToast img{width:37px;height:37px;flex:none;object-fit:contain}
+.sffSocialToastText{flex:1;min-width:0;display:grid;gap:4px}
+.sffSocialToastText strong{font-size:14px;color:#ffe7ed;overflow-wrap:anywhere}
+.sffSocialToastText small{font-size:12px;color:#d5bdc8;line-height:1.3;overflow-wrap:anywhere;max-height:3em;overflow:hidden}
+.sffSocialToastArrow{font-size:26px;color:#fa8faa}
+.sffSocialMobileButton{display:none}
+.sffSocialDialog{width:min(510px,calc(100vw - 20px));max-width:510px!important;max-height:calc(100dvh - 30px);padding:0!important;background:#19151c!important;color:#fff!important;border:1px solid #654253!important;border-radius:18px!important}
+.sffSocialHead{display:flex;gap:12px;align-items:center;background:linear-gradient(110deg,#7c2b44,#271b2a);padding:18px 19px}
+.sffSocialHead img{width:41px;height:41px}
+.sffSocialHead div{display:grid;gap:3px}
+.sffSocialHead strong{font-size:19px}
+.sffSocialHead small{font-size:11px;color:#f1b4c3}
+.sffSocialHistory{padding:8px 14px;max-height:54vh;min-height:95px;overflow:auto}
+.sffSocialEvent{display:flex;gap:12px;padding:14px 8px;border-bottom:1px solid #453440}
+.sffSocialEvent:last-child{border:0}
+.sffSocialEventIcon{display:grid;place-items:center;width:32px;height:32px;flex:none;background:#532b41;color:#ffc4d1;border-radius:10px}
+.sffSocialEvent b{font-size:13px}
+.sffSocialEvent p{margin:5px 0;color:#d9cad2;font-size:12px;overflow-wrap:anywhere}
+.sffSocialEvent small{color:#afa0a9;font-size:11px}
+.sffSocialEmpty{text-align:center;padding:25px;color:#afa0ac}
+.sffSocialActions{padding:13px;display:flex;flex-wrap:wrap;gap:7px;border-top:1px solid #513747;background:#211a24}
+.sffSocialActions button,.sffSocialSoundTests button{border:1px solid #845166!important;border-radius:10px!important;background:#382637!important;color:#ffe0e8!important;padding:8px!important;font-size:12px!important}
+.sffSocialActions button:first-child{background:#742d48!important}
+.sffSocialSettings{display:grid;gap:10px;margin:12px 0}
+.sffSocialSettings h3{font-size:14px;color:#ffb0c1;margin:9px 0 0}
+.sffSocialSettings label{display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding:11px;border-radius:11px;border:1px solid #503845;background:#211b22;font-size:13px;color:#f5e9ec}
+.sffSocialSettings input[type=checkbox],.sffSocialSettings input[type=range]{accent-color:#f24769}
+.sffSocialSettings input[type=checkbox]{width:18px;height:18px}
+.sffSocialSettings input[type=range]{width:100%}
+.sffSocialSettings select{flex:1;min-height:34px;background:#19141a;border:1px solid #654957;border-radius:8px;color:#fff;padding:5px}
+.sffSocialSettings [data-social-volume]{margin-left:auto;color:#ffacbf}
+.sffSocialSoundTests{display:flex;gap:7px}
+.sffSocialSoundTests button{flex:1}
+.sffSocialSettings .muted{font-size:11px;line-height:1.6}
+@media(max-width:760px){
+.sffSocialToast{top:8px;left:10px;right:10px;width:calc(100vw - 20px)}
+.sffSocialMobileButton{display:flex!important;position:relative;align-items:center;justify-content:center;flex-direction:column;gap:1px;min-width:0;padding:6px 2px!important}
+.sffSocialMobileButton img{width:23px;height:23px}
+.sffSocialMobileButton small{font-size:10px}
+.sffSocialMobileButton .sffSocialCounter{right:0;top:0}
+.sffSocialDialog{width:calc(100vw - 14px)}
+.sffSocialActions button{font-size:11px!important;padding:7px!important}
+}
+
+.sffRequestHeading{font-size:14px;margin:13px 0 9px;color:#ff97b2;font-weight:800}

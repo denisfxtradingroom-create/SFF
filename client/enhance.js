@@ -8,17 +8,7 @@
           const v = JSON.parse(event.data);
           // After a new message, an erased conversation may legitimately reappear.
           if (v.type === "message" && hidden.has(Number(v.room))) refreshHidden();
-          if (
-            v.type === "message" &&
-            v.notify === true &&
-            document.hidden &&
-            window.SFFAndroid?.show
-          ) {
-            const preview = v.body?.trim() || v.file || "Nova poruka";
-            window.SFFAndroid.show(
-              String(v.name || "SFF") + ": " + String(preview).slice(0, 90),
-            );
-          }
+          // social-notifications.js owns native/browser alerts to avoid duplicates.
         } catch {}
       });
     }
@@ -120,7 +110,8 @@
         '<label><input type="checkbox" data-sff-setting="autoMedia" ' + (s.autoMedia ? "checked" : "") + '> Automatski prikaz slika, videa i zvuka</label>' +
         '<label><input type="checkbox" data-sff-setting="compact" ' + (s.compact ? "checked" : "") + '> Kompaktan prikaz poruka</label>' +
         '<label><input type="checkbox" data-sff-setting="reduced" ' + (s.reduced ? "checked" : "") + '> Smanji animacije</label>' +
-        '<p class="muted">Privatnost naloga, promena lozinke, avatar i sistemska obaveštenja nalaze se u tvom SFF profilu.</p>' +
+        (window.SFFSocial?.settingsHTML() || "") +
+        '<p class="muted">Privatnost, lozinka i profilna slika nalaze se u tvom profilu.</p>' +
       '</div>',
     );
   }
