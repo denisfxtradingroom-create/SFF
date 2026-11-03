@@ -15,7 +15,7 @@
   const get = (key) => localStorage.getItem("sff.social." + key) ?? config[key];
   const enabled = (key) => get(key) === "1";
   const escape = (v) => String(v ?? "").replace(/[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "'": "&#39;" })[c]);
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   let identity = null;
   let gettingIdentity = null;
   let context = null;
@@ -340,7 +340,7 @@
       .join("") + '</select></label>' +
       '<label>Jačina zvuka <span data-social-volume>' + escape(get("volume")) +
       '%</span><input type="range" min="0" max="100" step="5" value="' +
-      escape(get("volume")) + '" data-social-setting="volume" data-sff-setting="volume"></label>' +
+      escape(get("volume")) + '" data-social-setting="volume" ></label>' +
       '<div class="sffSocialSoundTests"><button type="button" data-social-test="message">' +
       '▶ Test poruke</button><button type="button" data-social-test="friend">' +
       '▶ Test zahteva</button></div>' +
