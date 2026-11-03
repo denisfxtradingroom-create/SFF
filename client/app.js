@@ -229,6 +229,7 @@ async function sync() {
 function render() {
   const r = current(),
     sp = community(),
+    pendingFriends = data.friends.filter((f) => !f.accepted && f.target === data.me.id).length,
     draft = document.querySelector("[name=body]")?.value || "";
   const rail =
     '<aside class="rail">' +
@@ -273,7 +274,8 @@ function render() {
       ? btn("invite", "Pozivnica") +
         (sp.role !== "Member" ? btn("newChannel", "＋ Kanal") : "") +
         (sp.owner === data.me.id ? btn("spaceSettings", "Uredi") : "")
-      : btn("friendsList", "Prijatelji") +
+      : btn("friendsList", pendingFriends ? "Prijatelji · " + pendingFriends : "Prijatelji",
+          "", pendingFriends ? "sffFriendPending" : "") +
         btn("group", "Grupa") +
         btn("spacesMenu", "Zajednice")) +
     '</div><div class="list">' +
@@ -367,7 +369,7 @@ function render() {
       "",
       "" + (page === "spaces" ? "active" : ""),
     ) +
-    btn("friends", "Poruke") +
+    btn("friends", pendingFriends ? "Poruke · " + pendingFriends : "Poruke") +
     btn("chatPage", "Chat") +
     btn("membersPage", "Članovi") +
     btn("profile", "Profil") +
@@ -573,30 +575,7 @@ function live() {
         typingTimer = setTimeout(() => context(), 2200);
       }
       if (v.type === "message" || v.type === "changed") {
-        if (
-          v.type === "message" &&
-          v.uid !== data.me.id &&
-          document.hidden &&
-          shouldNotify(v) &&
-          data.me.status !== "Do Not Disturb" &&
-          window.SFFAndroid
-        )
-          window.SFFAndroid.show(
-            "Nova poruka · " +
-              (data.rooms.find((r) => r.id === v.room)?.name || "Razgovor"),
-          );
-        else if (
-          v.type === "message" &&
-          v.uid !== data.me.id &&
-          document.hidden &&
-          shouldNotify(v) &&
-          data.me.status !== "Do Not Disturb" &&
-          window.Notification?.permission === "granted"
-        )
-          new Notification("SFF · " + (v.name || "Nova poruka"), {
-            body: String(v.body?.trim() || v.file || "Nova poruka").slice(0, 120),
-            icon: "/mark.svg",
-          });
+        // Notifications are delivered once by social-notifications.js.
         if (v.room === room) await historyLoad();
         else await sync();
       }
@@ -650,6 +629,9 @@ function friendsDialog() {
     form("friend", field("username", "Korisničko ime"), "Pošalji zahtev") +
       "<hr>" +
       data.friends
+        .slice()
+        .sort((a, b) => Number(!b.accepted && b.target === data.me.id) -
+          Number(!a.accepted && a.target === data.me.id))
         .map(
           (f) =>
             '<div class="person"><div class="spacer"><b>' +
