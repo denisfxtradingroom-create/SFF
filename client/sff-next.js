@@ -92,7 +92,8 @@
                 '<div class="sffV5Buttons">' +
                 '<button type="button" data-v5-legacy="password">Promeni lozinku</button>' +
                 '<button type="button" data-v5-legacy="privacy">Privatnost</button>' +
-                '<button type="button" data-v5-legacy="notifications">Obaveštenja</button></div>' +
+                '<button type="button" data-v5-legacy="notifications">Obaveštenja</button>' +
+                '<button type="button" data-v5-logout>Odjavi se</button></div>' +
               '</section>' : '') +
             '<button type="button" class="sffV5Close" data-v5-close>Zatvori</button>' +
           '</div>' +
@@ -275,14 +276,20 @@
     const cancel = el.closest("[data-v5-cancel]");
     const pick = el.closest("[data-v5-pick]");
     const legacy = el.closest("[data-v5-legacy]");
-    if (!(own || other || close || record || cancel || pick || legacy)) return;
+    const logout = el.closest("[data-v5-logout]");
+    if (!(own || other || close || record || cancel || pick || legacy || logout)) return;
     // Do not steal native chat buttons inside clickable contact rows.
-    if (other && !own && !close && !record && !cancel && !pick && !legacy &&
+    if (other && !own && !close && !record && !cancel && !pick && !legacy && !logout &&
         el.closest('[data-a]') && !el.closest('[data-sff-profile-id],[data-sff-profile-user]')) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     if (close) {
       document.querySelector("#dialog")?.close();
+      return;
+    }
+    if (logout) {
+      if (confirm("Odjaviti se sa SFF naloga na ovom uređaju?"))
+        api("logout").then(() => location.replace("/")).catch((e) => toast(e.message));
       return;
     }
     if (record) {
