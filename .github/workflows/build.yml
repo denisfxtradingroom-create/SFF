@@ -38,9 +38,20 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Install Android SDK 36
-        run: yes | sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Use preinstalled Android SDK
+        shell: bash
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "/usr/local/lib/android/sdk/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "/usr/local/lib/android/sdk/platform-tools" >> "$GITHUB_PATH"
+      - name: Accept Android SDK licenses and install API 36
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+          test -f "$ANDROID_HOME/platforms/android-36/android.jar"
+          test -x "$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          test -x "$ANDROID_HOME/build-tools/36.0.0/zipalign"
       - name: Create temporary signing key
         run: |
           keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/sff-release.p12" -storetype PKCS12 -storepass sff-build-only -keypass sff-build-only -alias sff -keyalg RSA -keysize 3072 -validity 3650 -dname 'CN=SFF Build,O=SFF,C=RS'
