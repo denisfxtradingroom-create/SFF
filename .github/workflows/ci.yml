@@ -20,4 +20,7 @@ jobs:
       - run: node --check client/notify-init.js
       - run: node --check client/sff-next.js
       - run: node --check client/social-notifications.js
+      - run: node --check client/social-wall.js
+      - run: node --check backend/wall.mjs
+      - run: node tests/wall.mjs
       - run: npm test
