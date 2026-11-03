@@ -628,6 +628,9 @@ function friendsDialog() {
     "Prijatelji",
     form("friend", field("username", "Korisničko ime"), "Pošalji zahtev") +
       "<hr>" +
+      (data.friends.some((f) => !f.accepted && f.target === data.me.id)
+        ? '<h3 class="sffRequestHeading">✦ Novi zahtevi za prijateljstvo</h3>'
+        : "") +
       data.friends
         .slice()
         .sort((a, b) => Number(!b.accepted && b.target === data.me.id) -
