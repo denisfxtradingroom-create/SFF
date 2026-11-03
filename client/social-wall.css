@@ -1,0 +1,115 @@
+/* SFF Početna • zajednički desktop/Android responsive društveni zid */
+body.sffWallOpen{overflow:hidden}
+#sffWallScreen[hidden],.sffWallComments[hidden],#sffWallMore[hidden]{display:none!important}
+#sffWallScreen{position:fixed;inset:0;z-index:8500;overflow:auto;overscroll-behavior:contain;background:#100f15;color:#f7eef3;font-family:inherit}
+.sffWallTop{position:sticky;top:0;z-index:12;display:flex;align-items:center;justify-content:space-between;gap:12px;height:72px;padding:0 clamp(13px,4vw,50px);background:#1a1720f2;border-bottom:1px solid #443040;backdrop-filter:blur(14px)}
+.sffWallBrand{display:flex;align-items:center;gap:10px;min-width:0}
+.sffWallBrand img{width:36px;height:36px;object-fit:contain}
+.sffWallBrand>div{display:grid;gap:0}
+.sffWallBrand strong{font-size:20px;letter-spacing:.06em}
+.sffWallBrand small{font-size:9px;color:#c18ca3;letter-spacing:.13em}
+.sffWallTopActions{display:flex;align-items:center;gap:9px}
+.sffWallTopActions button,.sffWallAside button{display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid #563544!important;background:#27202a!important;color:#f0d9e3!important;padding:10px 12px!important;border-radius:12px!important;font-size:13px!important;font-weight:650}
+.sffWallTopActions button:hover,.sffWallAside button:hover{background:#533040!important}
+.sffWallTopActions .sffWallClose{background:#a73253!important;border-color:#e05273!important;color:#fff!important}
+.sffWallLayout{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:270px minmax(0,680px);gap:33px;padding:27px 19px 55px;justify-content:center}
+.sffWallAside{position:sticky;top:99px;height:max-content;display:grid;gap:10px;background:#1a171e;padding:17px;border:1px solid #40303d;border-radius:18px}
+.sffWallMe{display:flex;align-items:center;gap:11px;padding:8px 2px 16px;margin-bottom:5px;border-bottom:1px solid #443440}
+.sffWallMe>div{display:grid;gap:5px;min-width:0}
+.sffWallMe b{font-size:14px;overflow-wrap:anywhere}
+.sffWallMe small{font-size:11px;color:#c69eae}
+.sffWallAside button{width:100%;justify-content:flex-start!important;min-height:42px}
+.sffWallAside button.selected{background:#6c2c49!important;color:#ffe8ec!important;border-color:#bd4f70!important}
+.sffWallRule{background:#251d27;border:1px solid #48333f;border-radius:13px;padding:15px;font-size:12px;margin-top:5px;color:#d5bcc7}
+.sffWallRule b{font-size:12px;color:#f5cad6}
+.sffWallRule p{line-height:1.55;margin:8px 0 0}
+.sffWallMain{width:100%;min-width:0}
+.sffWallHeading{padding:10px 7px 22px}
+.sffWallEyebrow{font-size:10px;letter-spacing:.13em;color:#fa8faa;font-weight:800}
+.sffWallHeading h1{margin:7px 0;color:#fff;font-size:clamp(24px,3.6vw,34px);letter-spacing:-.03em}
+.sffWallHeading p{margin:0;color:#c4b6c2;font-size:13px}
+.sffWallWallHeader{display:flex;align-items:center;gap:17px}
+.sffWallWallHeader .sffWallAvatar{width:72px;height:72px;font-size:28px;border-radius:23px}
+.sffWallComposer,.sffWallPost,.sffWallPrivacy,.sffWallEmpty{background:#1c1821;border:1px solid #43303f;border-radius:18px;margin-bottom:18px;box-shadow:0 10px 32px #0002}
+.sffWallComposer{padding:20px;display:grid;gap:12px}
+.sffWallComposeHead,.sffWallPostHead{display:flex;align-items:center;gap:10px}
+.sffWallComposeHead>div{display:grid;gap:3px}
+.sffWallComposeHead b{font-size:14px}
+.sffWallComposeHead small{font-size:11px;color:#b9a1af}
+.sffWallAvatar{position:relative;width:44px;height:44px;flex:none;border-radius:14px;overflow:hidden;display:grid;place-items:center;background:linear-gradient(145deg,#e75873,#66304a);color:#fff;font-weight:800;font-size:19px}
+.sffWallAvatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.sffWallComposer textarea{width:100%;min-height:82px;resize:vertical;border-radius:13px!important;padding:14px!important;border:1px solid #503948!important;background:#14121a!important;color:#fff!important;box-sizing:border-box;font-family:inherit;font-size:14px;line-height:1.6}
+.sffWallComposer textarea::placeholder{color:#9f929d}
+.sffWallComposerActions{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sffWallImagePick{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid #5f3c4c;border-radius:10px;background:#322332;color:#ffbdca;font-size:12px;cursor:pointer}
+.sffWallPrimary{background:#ed466a!important;color:#fff!important;border:1px solid #f65e7e!important;padding:10px 20px!important;border-radius:12px!important;font-weight:750!important}
+.sffWallPrimary:disabled{opacity:.5}
+.sffWallFilePreview>div{position:relative;width:max-content;max-width:100%}
+.sffWallFilePreview img{display:block;max-height:170px;max-width:100%;border-radius:11px;object-fit:cover}
+.sffWallFilePreview button{background:#3b2434!important;border:1px solid #a34e66!important;color:#fff!important;margin-top:5px;border-radius:8px!important}
+.sffWallFeed{display:grid;gap:0}
+.sffWallPost{overflow:hidden}
+.sffWallPostHead{justify-content:space-between;padding:16px 18px 10px}
+.sffWallAuthor{min-width:0;flex:1;text-align:left;display:flex;align-items:center;gap:11px;border:0!important;padding:0!important;background:transparent!important;color:inherit!important}
+.sffWallAuthor>span:last-child{display:grid;gap:4px;min-width:0}
+.sffWallAuthor b{font-size:14px;overflow-wrap:anywhere}
+.sffWallAuthor small{font-size:11px;color:#b6a7b0}
+.sffWallDelete{font-size:23px!important;color:#d2a8b6!important;border:0!important;background:transparent!important;min-width:37px}
+.sffWallText{margin:8px 19px 16px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;font-size:14px;color:#f1e6eb}
+.sffWallPhoto{display:block;width:100%;max-height:530px;object-fit:contain;background:#100e15}
+.sffWallCounts{display:flex;justify-content:space-between;gap:10px;padding:13px 19px;color:#cbb8c3;font-size:11px;border-bottom:1px solid #3d2e39}
+.sffWallPostActions{display:flex;gap:2px;padding:7px 8px}
+.sffWallPostActions button{flex:1;min-width:0;padding:12px 5px!important;text-align:center;font-size:12px!important;font-weight:700!important;border:0!important;background:transparent!important;color:#d8bfca!important;border-radius:10px!important}
+.sffWallPostActions button:hover{background:#3a2636!important}
+.sffWallPostActions button.liked{color:#ff758e!important}
+.sffWallComments{padding:4px 18px 16px;border-top:1px solid #40303d}
+.sffWallCommentsList{display:grid;gap:12px;padding:13px 0}
+.sffWallComment{display:flex;align-items:flex-start;gap:9px}
+.sffWallComment .sffWallAvatar{width:30px;height:30px;border-radius:10px;font-size:12px}
+.sffWallComment>div:nth-child(2){flex:1;min-width:0;background:#29212d;border-radius:11px;padding:10px 12px}
+.sffWallComment b{font-size:12px;display:block}
+.sffWallComment small{color:#b8a3b0;font-size:10px}
+.sffWallComment p{font-size:12px;margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
+.sffWallComment>button{background:transparent!important;border:0!important;color:#ff8da5!important;font-size:18px!important}
+.sffWallCommentForm{display:flex;gap:8px}
+.sffWallCommentForm input{flex:1;min-width:0;border:1px solid #593c4c!important;border-radius:10px!important;background:#14121a!important;color:#fff!important;padding:10px!important;font-size:13px!important}
+.sffWallCommentForm button{border-radius:10px!important;background:#8f3250!important;border:0!important;color:#fff!important;padding:10px!important;font-size:12px!important}
+.sffWallNoComments,.sffWallLoading{font-size:12px;color:#ad9daa}
+.sffWallEmpty{text-align:center;padding:40px 24px}
+.sffWallEmpty span{font-size:36px;color:#ed6683}
+.sffWallEmpty h2{font-size:20px;margin:8px 0}
+.sffWallEmpty p{font-size:13px;color:#bcaeba;line-height:1.6}
+.sffWallPrivacy{padding:15px 19px;font-size:13px;color:#d2b8c8}
+#sffWallMore{width:100%;border:1px solid #6d4052!important;background:#322333!important;border-radius:12px!important;padding:12px!important;color:#ffe4ec!important}
+.sffWallFooter{text-align:center;padding:17px;font-size:11px;color:#877b87}
+#sffWallShare{background:#1e1923;color:#fff;border:1px solid #674356;border-radius:19px;width:min(460px,calc(100vw - 25px));padding:22px}
+#sffWallShare h2{font-size:19px;margin:0 0 8px}
+#sffWallShare p{font-size:13px;color:#c5b7c2;line-height:1.5}
+#sffWallShare form{display:grid;gap:13px}
+#sffWallShare label{font-size:12px;display:grid;gap:8px}
+#sffWallShare select{width:100%;background:#131018;border:1px solid #714658;color:#fff;border-radius:10px;padding:10px;box-sizing:border-box}
+.sffWallShareActions{display:flex;justify-content:end;gap:10px}
+.sffWallShareActions button{border-radius:10px!important}
+#sffWallError{display:none;position:fixed;bottom:calc(23px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);max-width:calc(100vw - 30px);min-width:220px;border-radius:12px;padding:13px 18px;background:#503044;color:#fff;z-index:11000;box-shadow:0 8px 30px #0009;font-size:13px;text-align:center}
+#sffWallError.visible{display:block}
+.sffV5WallButton{margin-top:5px;background:#822e4d!important;border:1px solid #ee6284!important;color:#fff!important;border-radius:11px!important;padding:12px!important;font-weight:750!important}
+@media(max-width:900px){.sffWallLayout{grid-template-columns:minmax(0,700px)}.sffWallAside{display:none}}
+@media(max-width:760px){
+.sffWallTop{height:59px;padding:0 9px;gap:4px}
+.sffWallBrand{gap:5px}.sffWallBrand img{width:28px;height:28px}
+.sffWallBrand strong{font-size:15px}.sffWallBrand small{font-size:7px}
+.sffWallTopActions{gap:3px}
+.sffWallTopActions button{padding:8px!important;font-size:12px!important;min-width:31px}
+.sffWallTopActions button span{display:none}
+.sffWallLayout{display:block;padding:14px 9px 40px}
+.sffWallHeading{padding:4px 8px 14px}
+.sffWallHeading h1{font-size:25px}
+.sffWallComposer{padding:13px;margin-bottom:12px}
+.sffWallPost{margin-bottom:12px}
+.sffWallPostActions button{font-size:10px!important;padding:10px 2px!important}
+.sffWallPostHead{padding:13px 12px 9px}
+.sffWallText{margin:7px 13px 15px}
+.sffWallCounts{padding:10px 13px}
+.sffWallCommentForm input{font-size:12px!important}
+.sffWallComments{padding:4px 11px 12px}
+}
