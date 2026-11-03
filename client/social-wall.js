@@ -311,7 +311,11 @@
     try{
       if(form.id==="sffWallComposer"){
         await api("wallCreate",{body:form.querySelector("[name=body]").value,image:composerImage});
-        composerImage=null;composerPreview=null;await load(true);
+        composerImage=null;composerPreview=null;
+        form.reset();
+        const preview=document.querySelector("#sffWallFilePreview");
+        if(preview)preview.innerHTML="";
+        await load(true);
       } else if(form.hasAttribute("data-wall-comment-form")){
         const id=Number(form.dataset.wallCommentForm);
         await api("wallComment",{id,body:form.querySelector("[name=comment]").value});
