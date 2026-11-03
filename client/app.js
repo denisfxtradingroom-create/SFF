@@ -162,7 +162,8 @@ function gate(reg = false) {
           field("password", "Lozinka · najmanje 8 znakova", "", "password") +
           field("passwordConfirm", "Potvrdi lozinku", "", "password")
         : field("username", "Korisničko ime") +
-          field("password", "Lozinka", "", "password")),
+          field("password", "Lozinka", "", "password")) +
+        '<label class="sffRemember"><input type="checkbox" name="remember" checked> Ostani prijavljen na ovom uređaju</label>',
       reg ? "Napravi nalog" : "Prijavi se",
     ) +
     btn("switch", reg ? "Već imam nalog" : "Napravi novi nalog") +
@@ -1076,6 +1077,7 @@ document.addEventListener("submit", async (e) => {
     const a = f.dataset.form,
       b = Object.fromEntries(new FormData(f));
     if (a === "login" || a === "register") {
+      b.remember = Boolean(f.querySelector('[name="remember"]')?.checked);
       data = await api(a, b);
       if (needsVerification()) {
         verificationGate(a === "register" ? "Poslali smo ti verifikacioni kod. Unesi ga da aktiviraš nalog." : "Ovaj nalog još nema potvrđen email. Unesi kod ili zatraži novi.");
