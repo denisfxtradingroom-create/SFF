@@ -52,3 +52,11 @@
  .sffV5Name h2{font-size:18px}
  .sffV5Record{padding:7px 6px!important}
 }
+
+.composer form input[name="body"]{flex:1 1 40px;min-width:0;width:0}
+@media(max-width:760px){
+ .composer form .sffV5Record:not(.recording){font-size:0!important;min-width:37px;padding:7px!important}
+ .composer form .sffV5Record:not(.recording)::before{content:"🎙";font-size:17px}
+ .composer form .sffV5Record.recording{font-size:11px!important;min-width:66px}
+ .composer form .sffV5Cancel{font-size:11px!important;padding:6px!important}
+}
