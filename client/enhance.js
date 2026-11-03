@@ -93,7 +93,7 @@
           '<div><h3>' + esc(p.name) + '</h3><p class="muted">@' + esc(p.username) + '</p></div>' +
           '</section>' +
           '<div class="sffProfileDetails">' +
-            '<p><b>Status</b><br>' + esc(p.status || "Offline") + (p.custom ? ' · ' + esc(p.custom) : '') + '</p>' +
+            '<p><b>Status</b><br>' + esc(({Online:"Na mreži",Idle:"Odsutan",Offline:"Van mreže","Do Not Disturb":"Ne uznemiravaj",Invisible:"Nevidljiv"})[p.status] || "Van mreže") + (p.custom ? ' · ' + esc(p.custom) : '') + '</p>' +
             '<p><b>O meni</b><br>' + esc(p.about || "Nema opisa.") + '</p>' +
           '</div>',
       );
