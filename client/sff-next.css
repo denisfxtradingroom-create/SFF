@@ -1,0 +1,54 @@
+/* SFF 0.5 – shared PC/Android profile and voice-message polish */
+.sffRemember{display:flex!important;flex-direction:row!important;align-items:center!important;gap:12px;margin:12px 0 15px!important;cursor:pointer;font-size:14px;color:#f4e4e8!important}
+.sffRemember input{width:18px!important;height:18px!important;flex:0 0 18px;accent-color:#f44464}
+.sffV5Dot{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none;margin-right:7px;background:#666;border:2px solid #151319;box-shadow:0 0 0 1px #3f3540}
+.sffV5Dot.online{background:#25d983;box-shadow:0 0 0 2px #183d2d,0 0 12px rgba(40,230,135,.45)}
+.sffV5Dot.idle{background:#ffbd4d;box-shadow:0 0 0 2px #493717}
+.sffV5Dot.busy{background:#ff435e;box-shadow:0 0 0 2px #491a27}
+.sffV5Dot.offline{background:#757680;box-shadow:none}
+.side footer [data-a="profile"]{display:flex;align-items:center;gap:6px}
+.members .person .avatar{position:relative}
+.members .person .avatar .sffV5Dot{position:absolute;bottom:-4px;right:-8px}
+.sffV5ProfileTrigger,.msg .author[data-sff-user-id]{cursor:pointer}
+.msg .author[data-sff-user-id]:hover{text-decoration:underline;color:#ff9cac}
+.sffV5Record{background:#311c26!important;border:1px solid #754050!important;border-radius:11px!important;color:#ffd3d9!important;white-space:nowrap;font-size:12px!important;padding:7px 10px!important}
+.sffV5Record:hover{border-color:#e85268!important}
+.sffV5Record.recording{background:#a32a3f!important;color:white!important;box-shadow:0 0 0 3px #79243770!important}
+.sffV5Cancel{border-radius:10px!important;background:#39282c!important;color:#ffc0c8!important;font-size:12px!important;padding:7px 10px!important}
+.sffV5Cancel[hidden]{display:none!important}
+.sffProfileDialog{width:min(560px,calc(100vw - 24px));max-width:560px!important;padding:0!important;border-radius:21px!important;background:#151318!important;border:1px solid #50333f!important;max-height:calc(100dvh - 36px);overflow:auto}
+.sffProfileDialog::backdrop{background:rgba(4,3,8,.83);backdrop-filter:blur(7px)}
+.sffV5Profile{min-width:0;color:#f8eff2}
+.sffV5Cover{height:154px;background:linear-gradient(125deg,#b42d4a,#4a182d 58%,#1c1723);position:relative;overflow:hidden}
+.sffV5Cover img{width:100%;height:100%;object-fit:cover;display:block}
+.sffV5CoverPattern{height:100%;background:radial-gradient(circle at 15% 40%,#fc596d88,transparent 45%),repeating-linear-gradient(125deg,#0000 0px,#0000 30px,#ffffff08 31px,#ffffff08 32px)}
+.sffV5CoverEdit{position:absolute;top:12px;right:12px;background:#21131be8!important;color:white!important;border:1px solid #ffffff55!important;padding:8px 11px!important;border-radius:12px!important}
+.sffV5Identity{display:flex;align-items:flex-end;gap:15px;padding:0 23px 18px;position:relative;margin-top:-44px}
+.sffV5BigAvatar{width:97px;height:97px;flex:none;border:5px solid #151318;border-radius:25px;background:linear-gradient(135deg,#f75e74,#74283c);display:grid;place-items:center;font-size:38px;font-weight:800;position:relative;overflow:visible;color:white;box-shadow:0 5px 24px #0008}
+.sffV5BigAvatar>img{width:100%;height:100%;object-fit:cover;border-radius:20px}
+.sffV5BigAvatar .sffV5Dot{position:absolute;right:-3px;bottom:1px;width:18px;height:18px;border:3px solid #151318}
+.sffV5Name{min-width:0;flex:1;padding-bottom:5px}
+.sffV5Name h2{font-size:21px;margin:0 0 4px;line-height:1.1;overflow-wrap:anywhere;color:#fff}
+.sffV5Handle{font-size:13px;color:#bdaeb8;overflow-wrap:anywhere}
+.sffV5Presence{display:flex;align-items:center;gap:3px;margin-top:7px;font-size:12px;color:#d6c8d0}
+.sffV5ProfileBody{display:grid;gap:13px;padding:0 23px 21px}
+.sffV5Panel{border:1px solid #493340;border-radius:15px;background:#1e1921;padding:15px}
+.sffV5Panel p{line-height:1.6;margin:9px 0 0;color:#e5dbe0;white-space:pre-wrap}
+.sffV5Label{color:#f37085;font-size:10px;font-weight:800;letter-spacing:.12em}
+.sffV5ProfileForm{display:grid;gap:12px;margin-top:14px}
+.sffV5ProfileForm label{display:grid;gap:6px;color:#dccdd2;font-size:12px}
+.sffV5ProfileForm input,.sffV5ProfileForm textarea,.sffV5ProfileForm select{width:100%;box-sizing:border-box;border-radius:10px;border:1px solid #644858;background:#161219;color:#fff;padding:10px 12px;font-size:14px;min-width:0}
+.sffV5ProfileForm textarea{resize:vertical}
+.sffV5Primary{background:#ef4264!important;color:white!important;border:0!important;font-weight:700!important;padding:10px 14px!important;border-radius:11px!important}
+.sffV5Buttons{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.sffV5Buttons button{font-size:12px!important;border-radius:10px!important;border:1px solid #66404e!important;color:#ffd0d7!important;background:#32202b!important;padding:8px 10px!important}
+.sffV5Close{padding:11px 16px!important;border-radius:11px!important;justify-self:end;background:#35252f!important;color:white!important}
+@media(max-width:760px){
+ .sffProfileDialog{width:calc(100vw - 14px);max-height:calc(100dvh - 14px)}
+ .sffV5Cover{height:135px}
+ .sffV5Identity{padding-left:15px;padding-right:15px;gap:10px}
+ .sffV5BigAvatar{width:80px;height:80px;border-radius:22px;font-size:32px}
+ .sffV5ProfileBody{padding:0 14px 16px;gap:10px}
+ .sffV5Name h2{font-size:18px}
+ .sffV5Record{padding:7px 6px!important}
+}
