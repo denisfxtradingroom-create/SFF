@@ -26,7 +26,7 @@ function cleanStatements(sql) {
     .filter((s) => !/^PRAGMA\b/i.test(s));
 }
 
-function wrapRemote(client) {
+export function wrapRemote(client) {
   const execute = async (sql, args = []) => client.execute({ sql, args });
   const all = async (sql, ...args) => {
     const result = await execute(sql, args);
