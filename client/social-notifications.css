@@ -48,3 +48,5 @@
 .sffSocialDialog{width:calc(100vw - 14px)}
 .sffSocialActions button{font-size:11px!important;padding:7px!important}
 }
+
+.sffRequestHeading{font-size:14px;margin:13px 0 9px;color:#ff97b2;font-weight:800}
