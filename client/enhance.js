@@ -183,7 +183,7 @@
         video.src = link.getAttribute("href");
         video.className = "sffVideo";
         link.before(video);
-      } else if (name.endsWith(".mp3")) {
+      } else if (/\.(mp3|m4a|ogg|webm)$/.test(name)) {
         const audio = document.createElement("audio");
         audio.controls = true;
         audio.preload = "metadata";
@@ -220,11 +220,8 @@
       sessionStorage.getItem("sffAllowHiddenOnce") !== "1"
     ) {
       activeRoomButton()?.style.setProperty("display", "none", "important");
-      const chat = document.querySelector(".chat");
-      if (chat && !chat.querySelector(".sffDeletedState")) {
-        chat.innerHTML =
-          '<div class="empty sffDeletedState"><img src="/mark.svg" alt="SFF"><h2>Razgovor je obrisan</h2><p class="muted">Više se ne prikazuje u tvojoj listi razgovora.</p></div>';
-      }
+      // Backend /api/state is the source of truth. Never replace .chat.innerHTML:
+      // this previously fought with app.js redraws and produced blinking rooms.
       return;
     }
 
@@ -334,14 +331,12 @@
         return;
       try {
         await api("deleteChat", { room: id });
-        const state = await api("state");
-        const latest = Number(state.rooms?.find((r) => r.id === id)?.lastActivity) || 0;
-        if (latest) await api("read", { room: id, last: latest });
         hidden.add(id);
         hiddenReady = true;
         infoRoom = null;
         infoCache = null;
-        enhance();
+        // One reload clears stale selection without touching the other user's chat.
+        location.reload();
       } catch (e) {
         openSffModal("Brisanje razgovora", '<p class="muted">' + esc(e.message) + '</p>');
       }
