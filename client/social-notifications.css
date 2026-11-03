@@ -40,6 +40,8 @@
 .sffSocialSoundTests button{flex:1}
 .sffSocialSettings .muted{font-size:11px;line-height:1.6}
 @media(max-width:760px){
+.shell .side footer .sffSocialCenterButton{display:none!important}
+
 .sffSocialToast{top:8px;left:10px;right:10px;width:calc(100vw - 20px)}
 .sffSocialMobileButton{display:flex!important;position:relative;align-items:center;justify-content:center;flex-direction:column;gap:1px;min-width:0;padding:6px 2px!important}
 .sffSocialMobileButton img{width:23px;height:23px}
