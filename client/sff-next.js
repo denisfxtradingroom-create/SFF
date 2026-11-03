@@ -74,10 +74,10 @@
             (p.custom ? '<section class="sffV5Panel"><div class="sffV5Label">STATUS</div><p>' +
               escape(p.custom) + '</p></section>' : '') +
             (own ?
-              '<section class="sffV5Panel"><div class="sffV5Label">EMAIL NALOGA</div>' +
+              '<section class="sffV5Panel"><div class="sffV5Label">E-POŠTA NALOGA</div>' +
                 '<p>' + escape(state.me.email || "Nije podešen") + '</p>' +
                 '<p class="sffV5Verify ' + (state.preferences?.verified ? "confirmed" : "pending") + '">' +
-                  (state.preferences?.verified ? "✓ Email potvrđen" : "○ Email nije potvrđen") + '</p>' +
+                  (state.preferences?.verified ? "✓ E-pošta potvrđena" : "○ E-pošta nije potvrđena") + '</p>' +
               '</section>' +
               '<section class="sffV5Panel"><div class="sffV5Label">IZMENI PROFIL</div>' +
                 '<form class="sffV5ProfileForm" data-v5-profile-form>' +
