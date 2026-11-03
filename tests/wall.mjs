@@ -38,6 +38,13 @@ async function reg(u,username){
 }
 try{
   await boot();
+  const page=await fetch(origin+"/");
+  assert.equal(page.status,200);
+  const html=await page.text();
+  assert.match(html,/\/social-wall\.js/);
+  assert.match(html,/\/social-wall\.css/);
+  assert.match(await (await fetch(origin+"/social-wall.js")).text(),/Početna/);
+  assert.equal((await fetch(origin+"/social-wall.css")).status,200);
   await reg(A,"marko");await reg(B,"milica");await reg(C,"stranac");
   const a=(await request(A,"state")).me.id;
   const b=(await request(B,"state")).me.id;
