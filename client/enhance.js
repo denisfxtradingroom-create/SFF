@@ -6,6 +6,8 @@
       this.addEventListener("message", (event) => {
         try {
           const v = JSON.parse(event.data);
+          // After a new message, an erased conversation may legitimately reappear.
+          if (v.type === "message" && hidden.has(Number(v.room))) refreshHidden();
           if (
             v.type === "message" &&
             v.notify === true &&
