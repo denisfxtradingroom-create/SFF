@@ -234,7 +234,7 @@
     const id = identity;
     const count = id ? history(id).filter((x) =>
       x.id > Number(localStorage.getItem(readKey(id)) || 0)).length : 0;
-    for (const btn of document.querySelectorAll("[data-social-center]")) {
+    for (const btn of document.querySelectorAll("[data-sff-home]")) {
       const badge = btn.querySelector(".sffSocialCounter");
       if (!count) { badge?.remove(); continue; }
       if (badge) {
@@ -254,22 +254,22 @@
       return;
     }
     const footer = shell.querySelector(".side footer");
-    if (footer && !footer.querySelector("[data-social-center]")) {
+    if (footer && !footer.querySelector("[data-sff-home]")) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "item sffSocialCenterButton";
-      button.dataset.socialCenter = "1";
-      button.innerHTML = '<img src="/mark.svg" alt=""> <span>Obaveštenja</span>';
+      button.dataset.sffHome = "1";
+      button.innerHTML = '<img src="/mark.svg" alt=""> <span>Početna</span>';
       footer.prepend(button);
     }
     const mobile = shell.querySelector(".mobileNav");
-    if (mobile && !mobile.querySelector("[data-social-center]")) {
+    if (mobile && !mobile.querySelector("[data-sff-home]")) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "sffSocialMobileButton";
-      button.dataset.socialCenter = "1";
-      button.title = "Centar obaveštenja";
-      button.innerHTML = '<img src="/mark.svg" alt=""><small>Novosti</small>';
+      button.dataset.sffHome = "1";
+      button.title = "Početna";
+      button.innerHTML = '<img src="/mark.svg" alt=""><small>Početna</small>';
       mobile.appendChild(button);
     }
     if (!identity && !gettingIdentity) userId().then(updateCenterBadge).catch(() => {});
