@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: sff-signal-api
+    runtime: node
+    plan: starter
+    region: frankfurt
+    buildCommand: npm install --omit=dev --no-audit --no-fund
+    startCommand: node backend/server.mjs
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 24.22.1
+      - key: HOST
+        value: 0.0.0.0
+      - key: SFF_HTTPS
+        value: "1"
+      - key: SFF_REQUIRE_VERIFIED_EMAIL
+        value: "1"
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SFF_MAIL_FROM
+        sync: false
+      - key: SFF_ICE
+        value: "[]"
