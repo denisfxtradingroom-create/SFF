@@ -1,5 +1,6 @@
 import { rolePolicy } from "./roles.mjs";
 import { extras } from "./extras.mjs";
+import { socialWall } from "./wall.mjs";
 import { openDatabase } from "./db.mjs";
 import http from "node:http";
 import { randomBytes, createHash, scrypt, timingSafeEqual } from "node:crypto";
@@ -102,6 +103,7 @@ const extra = await extras({
   push,
   sockets,
 });
+const wall = await socialWall({db,one,all,run,insert,demand,blocked,limit,push});
 function auth(req) {
   return (req.headers.cookie || "").match(/(?:^|; *)sff=([a-f0-9]{64})(?:;|$)/)?.[1];
 }
@@ -196,6 +198,8 @@ async function state(u) {
 async function action(a, b, u, res, req) {
   const ip = req.socket.remoteAddress;
   limit(ip + ":api", 900);
+  const wallResult = await wall.handle(a,b,u,req);
+  if (wallResult !== undefined) return wallResult;
   const result = await extra.handle(a, b, u, ip);
   if (result !== undefined) return result;
   if (a === "register" || a === "login") {
@@ -719,6 +723,10 @@ const server = http.createServer(async (req, res) => {
       const result = await action(path.slice(5), data, u, res, req);
       res.setHeader("Content-Type", "application/json");
       return res.end(JSON.stringify(result));
+    }
+    if (req.method === "GET" && /^\/wall-media\/[0-9]+$/.test(path)) {
+      await wall.media(u, Number(path.slice("/wall-media/".length)), res);
+      return;
     }
     if (path.startsWith("/art/")) {
       const [, , scope, raw, slot] = path.split("/"),
