@@ -101,6 +101,30 @@
     }
   }
 
+  async function accountDialog(kind) {
+    const dlg = document.querySelector("#dialog");
+    if (!dlg) return;
+    const state = await api("state");
+    dlg.classList.add("sffProfileDialog");
+    const privacy = kind === "privacy";
+    dlg.innerHTML =
+      '<div class="sffV5Profile"><div class="sffV5ProfileBody" style="padding-top:22px">' +
+        '<h2>' + (privacy ? "Privatnost naloga" : "Promena lozinke") + '</h2>' +
+        '<form class="sffV5ProfileForm" data-v5-account-form="' + kind + '">' +
+          (privacy ?
+            '<label class="sffRemember"><input type="checkbox" name="requests" ' +
+            (state.preferences?.requests ? "checked" : "") +
+            '> Dozvoli zahteve za prijateljstvo</label>' :
+            '<label>Trenutna lozinka<input type="password" name="old" required autocomplete="current-password"></label>' +
+            '<label>Nova lozinka<input type="password" name="password" required minlength="8" autocomplete="new-password"></label>' +
+            '<label>Potvrdi novu lozinku<input type="password" name="confirm" required minlength="8" autocomplete="new-password"></label>') +
+          '<button type="submit" class="sffV5Primary">Sačuvaj</button>' +
+        '</form>' +
+        '<button type="button" class="sffV5Close" data-v5-close>Zatvori</button>' +
+      '</div></div>';
+    if (!dlg.open) dlg.showModal();
+  }
+
   function currentRoomId() {
     return Number(document.querySelector('.side [data-a="room"].active')?.dataset.id) || 0;
   }
@@ -250,6 +274,9 @@
     const pick = el.closest("[data-v5-pick]");
     const legacy = el.closest("[data-v5-legacy]");
     if (!(own || other || close || record || cancel || pick || legacy)) return;
+    // Do not steal native chat buttons inside clickable contact rows.
+    if (other && !own && !close && !record && !cancel && !pick && !legacy &&
+        el.closest('[data-a]') && !el.closest('[data-sff-profile-id],[data-sff-profile-user]')) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     if (close) {
@@ -277,20 +304,12 @@
       return;
     }
     if (legacy) {
-      document.querySelector("#dialog")?.close();
-      const original = document.querySelector('.side [data-a="profile"]');
-      // Open the existing, tested account/security actions rather than duplicating them.
       const action = legacy.dataset.v5Legacy;
-      setTimeout(() => {
-        if (action === "notifications") {
-          if (window.SFFAndroid?.ask) window.SFFAndroid.ask();
-          else if (window.Notification) window.Notification.requestPermission();
-        } else if (action === "privacy" || action === "password") {
-          window.dispatchEvent(new CustomEvent("sff-legacy", { detail: action }));
-          // The existing Settings menu provides the non-native configuration.
-          toast("Otvori Profil → " + (action === "privacy" ? "Privatnost" : "Promeni lozinku") + ".");
-        }
-      }, 20);
+      if (action === "notifications") {
+        if (window.SFFAndroid?.ask) window.SFFAndroid.ask();
+        else if (window.Notification) window.Notification.requestPermission();
+      } else if (action === "privacy" || action === "password")
+        accountDialog(action).catch((e) => toast(e.message));
       return;
     }
     if (own) return void openProfile();
@@ -326,16 +345,28 @@
   }, true);
 
   document.addEventListener("submit", async (event) => {
-    const form = event.target.closest("[data-v5-profile-form]");
+    const form = event.target.closest("[data-v5-profile-form],[data-v5-account-form]");
     if (!form) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     const button = form.querySelector('button[type="submit"]');
     button.disabled = true;
     try {
-      await api("profile", Object.fromEntries(new FormData(form)));
+      const params = Object.fromEntries(new FormData(form));
+      const accountKind = form.dataset.v5AccountForm;
+      if (accountKind === "password") {
+        if (params.password !== params.confirm) throw Error("Lozinke se ne podudaraju.");
+        delete params.confirm;
+        await api("password", params);
+        toast("Lozinka je uspešno promenjena.");
+      } else if (accountKind === "privacy") {
+        await api("privacy", { requests: Boolean(form.querySelector('[name="requests"]')?.checked) });
+        toast("Privatnost je sačuvana.");
+      } else {
+        await api("profile", params);
+        toast("Profil je ažuriran.");
+      }
       await openProfile(profileId);
-      toast("Profil je ažuriran.");
     } catch (err) { toast(err.message); }
     finally { button.disabled = false; }
   }, true);
