@@ -36,7 +36,7 @@ const str = (v, max, min = 1) => {
   );
   return v.trim();
 };
-const profile = "id,username,name,about,status,custom";
+const profile = "id,username,email,name,about,status,custom";
 const member = (s, u) => one("select * from members where space=? and uid=?", s, u);
 const blocked = (a, b) =>
   one(
