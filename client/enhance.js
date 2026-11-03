@@ -59,6 +59,11 @@
   let infoRoom = null;
   let infoCache = null;
 
+  const scheduleEnhance = () => {
+    clearTimeout(enhanceTimer);
+    enhanceTimer = setTimeout(enhance, 45);
+  };
+
   async function refreshHidden() {
     try {
       const rows = await api("hiddenChats");
@@ -68,11 +73,6 @@
     } catch {}
   }
   refreshHidden();
-
-  const scheduleEnhance = () => {
-    clearTimeout(enhanceTimer);
-    enhanceTimer = setTimeout(enhance, 40);
-  };
 
   function activeRoomButton() {
     return document.querySelector('.side [data-a="room"].active');
@@ -118,7 +118,7 @@
         '<label><input type="checkbox" data-sff-setting="autoMedia" ' + (s.autoMedia ? "checked" : "") + '> Automatski prikaz slika, videa i zvuka</label>' +
         '<label><input type="checkbox" data-sff-setting="compact" ' + (s.compact ? "checked" : "") + '> Kompaktan prikaz poruka</label>' +
         '<label><input type="checkbox" data-sff-setting="reduced" ' + (s.reduced ? "checked" : "") + '> Smanji animacije</label>' +
-        '<p class="muted">Ova podešavanja važe na ovom uređaju. Privatnost naloga, lozinka, avatar i obaveštenja ostaju u tvom SFF profilu.</p>' +
+        '<p class="muted">Privatnost naloga, promena lozinke, avatar i sistemska obaveštenja nalaze se u tvom SFF profilu.</p>' +
       '</div>',
     );
   }
@@ -126,8 +126,11 @@
   function enhanceUnread() {
     let total = 0;
     for (const button of document.querySelectorAll('.side [data-a="room"]')) {
-      if (button.querySelector(".sffUnread")) {
-        total += Number(button.querySelector(".sffUnread")?.textContent) || 0;
+      const id = Number(button.dataset.id);
+      if (hiddenReady && hidden.has(id)) continue;
+      const existing = button.querySelector(".sffUnread");
+      if (existing) {
+        total += Number(existing.textContent) || 0;
         continue;
       }
       const text = button.textContent || "";
@@ -141,22 +144,32 @@
       badge.textContent = count > 99 ? "99+" : String(count);
       button.appendChild(badge);
     }
+
     const mobileMessages = document.querySelector('.mobileNav [data-a="friends"]');
-    if (mobileMessages) {
-      mobileMessages.querySelector(".sffUnread")?.remove();
-      if (total) {
-        const badge = document.createElement("span");
-        badge.className = "sffUnread";
-        badge.textContent = total > 99 ? "99+" : String(total);
-        mobileMessages.appendChild(badge);
-      }
+    if (!mobileMessages) return;
+    const badge = mobileMessages.querySelector(".sffUnread");
+    const wanted = total > 99 ? "99+" : String(total);
+    if (!total) {
+      if (badge) badge.remove();
+    } else if (badge) {
+      if (badge.textContent !== wanted) badge.textContent = wanted;
+    } else {
+      const next = document.createElement("span");
+      next.className = "sffUnread";
+      next.textContent = wanted;
+      mobileMessages.appendChild(next);
     }
   }
 
   function enhanceMedia() {
     const auto = settings().autoMedia;
     const input = document.querySelector("#attachment");
-    if (input) input.setAttribute("accept", "image/png,image/jpeg,video/mp4,audio/mpeg,.jpg,.jpeg,.png,.mp4,.mp3");
+    if (input)
+      input.setAttribute(
+        "accept",
+        "image/png,image/jpeg,video/mp4,audio/mpeg,.jpg,.jpeg,.png,.mp4,.mp3",
+      );
+
     for (const link of document.querySelectorAll('.msg a[href^="/media/"]')) {
       if (link.dataset.sffMedia === "1") continue;
       link.dataset.sffMedia = "1";
@@ -166,6 +179,7 @@
         const video = document.createElement("video");
         video.controls = true;
         video.preload = "metadata";
+        video.playsInline = true;
         video.src = link.getAttribute("href");
         video.className = "sffVideo";
         link.before(video);
@@ -199,23 +213,35 @@
     const id = roomId();
     const toolbar = document.querySelector(".chat .toolbar");
     if (!toolbar || !id) return;
-    if (hiddenReady && hidden.has(id) && sessionStorage.getItem("sffAllowHiddenOnce") !== "1") {
+
+    if (
+      hiddenReady &&
+      hidden.has(id) &&
+      sessionStorage.getItem("sffAllowHiddenOnce") !== "1"
+    ) {
       activeRoomButton()?.style.setProperty("display", "none", "important");
       const chat = document.querySelector(".chat");
       if (chat && !chat.querySelector(".sffDeletedState")) {
-        chat.innerHTML = '<div class="empty sffDeletedState"><img src="/mark.svg" alt="SFF"><h2>Razgovor je obrisan</h2><p class="muted">Više se ne prikazuje u tvojoj listi razgovora.</p></div>';
+        chat.innerHTML =
+          '<div class="empty sffDeletedState"><img src="/mark.svg" alt="SFF"><h2>Razgovor je obrisan</h2><p class="muted">Više se ne prikazuje u tvojoj listi razgovora.</p></div>';
       }
       return;
     }
-    if (sessionStorage.getItem("sffAllowHiddenOnce") === "1" && hidden.has(id)) {
+
+    if (sessionStorage.getItem("sffAllowHiddenOnce") === "1" && hidden.has(id))
       sessionStorage.removeItem("sffAllowHiddenOnce");
-    }
+
     if (infoRoom !== id) {
       infoRoom = id;
       infoCache = null;
-      try { infoCache = await api("chatInfo", { room: id }); } catch { return; }
+      try {
+        infoCache = await api("chatInfo", { room: id });
+      } catch {
+        return;
+      }
     }
     if (!infoCache || toolbar.querySelector("[data-sff-delete-chat]")) return;
+
     if (infoCache.kind === "dm" && infoCache.participants?.length) {
       const profile = document.createElement("button");
       profile.type = "button";
@@ -223,6 +249,7 @@
       profile.dataset.sffProfileId = String(infoCache.participants[0].id);
       toolbar.appendChild(profile);
     }
+
     if (["dm", "group"].includes(infoCache.kind)) {
       const del = document.createElement("button");
       del.type = "button";
@@ -239,7 +266,8 @@
     const allow = sessionStorage.getItem("sffAllowHiddenOnce") === "1";
     for (const button of document.querySelectorAll('.side [data-a="room"]')) {
       const id = Number(button.dataset.id);
-      if (hidden.has(id) && !(allow && active === id)) button.style.display = "none";
+      if (hidden.has(id) && !(allow && active === id))
+        button.style.display = "none";
     }
   }
 
@@ -268,18 +296,17 @@
   document.addEventListener(
     "click",
     (event) => {
-      const dm = event.target.closest('[data-a="dm"]');
-      if (dm) sessionStorage.setItem("sffAllowHiddenOnce", "1");
+      if (event.target.closest('[data-a="dm"]'))
+        sessionStorage.setItem("sffAllowHiddenOnce", "1");
     },
     true,
   );
 
   document.addEventListener("click", async (event) => {
-    const close = event.target.closest("[data-sff-close]");
-    if (close) return document.querySelector("#dialog")?.close();
+    if (event.target.closest("[data-sff-close]"))
+      return document.querySelector("#dialog")?.close();
 
-    const settingsButton = event.target.closest("[data-sff-settings]");
-    if (settingsButton) return openSettings();
+    if (event.target.closest("[data-sff-settings]")) return openSettings();
 
     const profile = event.target.closest("[data-sff-profile-id]");
     if (profile) return openProfile(profile.dataset.sffProfileId);
@@ -287,7 +314,9 @@
     const profileUser = event.target.closest("[data-sff-profile-user]");
     if (profileUser) {
       try {
-        const p = await api("userProfile", { username: profileUser.dataset.sffProfileUser });
+        const p = await api("userProfile", {
+          username: profileUser.dataset.sffProfileUser,
+        });
         return openProfile(p.id);
       } catch (e) {
         return openSffModal("Profil", '<p class="muted">' + esc(e.message) + '</p>');
@@ -297,9 +326,17 @@
     const del = event.target.closest("[data-sff-delete-chat]");
     if (del) {
       const id = Number(del.dataset.sffDeleteChat);
-      if (!confirm("Obriši ovaj razgovor iz svoje SFF istorije? Druga osoba zadržava svoju kopiju.")) return;
+      if (
+        !confirm(
+          "Obriši ovaj razgovor iz svoje SFF istorije? Druga osoba zadržava svoju kopiju.",
+        )
+      )
+        return;
       try {
         await api("deleteChat", { room: id });
+        const state = await api("state");
+        const latest = Number(state.rooms?.find((r) => r.id === id)?.lastActivity) || 0;
+        if (latest) await api("read", { room: id, last: latest });
         hidden.add(id);
         hiddenReady = true;
         infoRoom = null;
