@@ -46,6 +46,14 @@ const field = (n, label, value = "", type = "text", required = true) =>
   '" ' +
   (required ? "required" : "") +
   "></label>";
+const localized = (v) => ({
+  Member: "Član",
+  Online: "Na mreži",
+  Offline: "Van mreže",
+  Idle: "Odsutan",
+  "Do Not Disturb": "Ne uznemiravaj",
+  Invisible: "Nevidljiv"
+})[v] || v;
 const select = (n, label, opts, val) =>
   "<label>" +
   label +
@@ -55,7 +63,8 @@ const select = (n, label, opts, val) =>
   opts
     .map(
       (x) =>
-        "<option " + (x === val ? "selected" : "") + ">" + esc(x) + "</option>",
+        '<option value="' + esc(x) + '" ' + (x === val ? "selected" : "") +
+        ">" + esc(localized(x)) + "</option>",
     )
     .join("") +
   "</select></label>";
@@ -138,7 +147,7 @@ let data,
   retry = 0;
 const current = () => data?.rooms.find((r) => r.id === room),
   community = () => data?.spaces.find((s) => s.id === space);
-const signature = '<small class="signature">made by:Denis.D98</small>';
+const signature = '<small class="signature">Napravio: Denis.D98</small>';
 function gate(reg = false) {
   registered = reg;
   root.innerHTML =
@@ -157,8 +166,8 @@ function gate(reg = false) {
         ? field("firstName", "Ime") +
           field("lastName", "Prezime") +
           field("username", "Korisničko ime · bez razmaka, npr. denisdudas") +
-          field("email", "Email", "", "email") +
-          field("emailConfirm", "Potvrdi email", "", "email") +
+          field("email", "E-pošta", "", "email") +
+          field("emailConfirm", "Potvrdi e-poštu", "", "email") +
           field("password", "Lozinka · najmanje 8 znakova", "", "password") +
           field("passwordConfirm", "Potvrdi lozinku", "", "password")
         : field("username", "Korisničko ime") +
@@ -234,7 +243,7 @@ function render() {
   const rail =
     '<aside class="rail">' +
     mark +
-    btn("friends", "DM", "", "orbit " + (!sp ? "active" : "")) +
+    btn("friends", "✉", "", "orbit " + (!sp ? "active" : "")) +
     data.spaces
       .map((s) =>
         hasArt("space", s.id, "avatar")
@@ -321,7 +330,7 @@ function render() {
               esc(x.badge.name) +
               "</b> · "
             : "") +
-          esc(x.role || (data.online.includes(x.id) ? "Online" : "Prijatelj")) +
+          esc(x.role ? localized(x.role) : (data.online.includes(x.id) ? "Na mreži" : "Prijatelj")) +
           (x.online ? " · " + esc(x.status) : "") +
           "</small></div></div>",
       )
@@ -337,7 +346,7 @@ function render() {
     '<section class="chat"><header class="bar"><div><span class="eyebrow">' +
     esc(sp?.name || "SFF / PRIVATNO") +
     "</span><h2>" +
-    esc(r ? (r.kind === "voice" ? "◉ " : "# ") + r.name : "Signal") +
+    esc(r ? (r.kind === "voice" ? "◉ " : "# ") + r.name : "Razgovor") +
     "</h2><small>" +
     esc(r?.topic || "") +
     '</small></div><div class="row toolbar">' +
@@ -370,7 +379,7 @@ function render() {
       "" + (page === "spaces" ? "active" : ""),
     ) +
     btn("friends", pendingFriends ? "Poruke · " + pendingFriends : "Poruke") +
-    btn("chatPage", "Chat") +
+    btn("chatPage", "Razgovor") +
     btn("membersPage", "Članovi") +
     btn("profile", "Profil") +
     "</nav></div>";
@@ -1077,7 +1086,7 @@ document.addEventListener("submit", async (e) => {
     if (a === "verifyCode" && needsVerification()) {
       await api("verifyCode", b);
       data = await api("state");
-      note("Email je potvrđen. Dobro došao u SFF.");
+      note("E-pošta je potvrđena. Dobro došao u SFF.");
       await start();
       return;
     }
@@ -1117,7 +1126,7 @@ document.addEventListener("submit", async (e) => {
         "Unesi kod iz pošte",
         form(
           "reset",
-          field("email", "Email", b.email, "email") +
+          field("email", "E-pošta", b.email, "email") +
             field("code", "Jednokratni kod") +
             field("password", "Nova lozinka", "", "password"),
           "Promeni lozinku",
