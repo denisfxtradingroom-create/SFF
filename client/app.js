@@ -305,7 +305,9 @@ function render() {
     (sp ? people : data.friends.filter((f) => f.accepted))
       .map(
         (x) =>
-          '<div class="person"><span class="avatar">' +
+          '<div class="person" data-sff-user-id="' +
+          Number(x.id) +
+          '"><span class="avatar">' +
           esc(x.name.slice(0, 1)) +
           "</span><div><b>" +
           esc(x.name) +
@@ -430,7 +432,9 @@ function drawFeed(bottom = true) {
               '<article class="msg">' +
               (art("user", m.uid, "avatar", "avatar") ||
                 '<span class="avatar">' + esc(m.name[0]) + "</span>") +
-              '<div class="bubble"><span class="author">' +
+              '<div class="bubble"><span class="author" data-sff-user-id="' +
+              Number(m.uid) +
+              '">' +
               esc(m.name) +
               '</span> <span class="meta">' +
               new Date(m.time).toLocaleString("sr-Latn", {
@@ -589,11 +593,10 @@ function live() {
           data.me.status !== "Do Not Disturb" &&
           window.Notification?.permission === "granted"
         )
-          new Notification(
-            "SFF · " +
-              (data.rooms.find((r) => r.id === v.room)?.name || "Razgovor"),
-            { body: "Nova poruka", icon: "/mark.svg" },
-          );
+          new Notification("SFF · " + (v.name || "Nova poruka"), {
+            body: String(v.body?.trim() || v.file || "Nova poruka").slice(0, 120),
+            icon: "/mark.svg",
+          });
         if (v.room === room) await historyLoad();
         else await sync();
       }
