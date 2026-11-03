@@ -17,4 +17,5 @@ jobs:
       - run: node --check backend/roles.mjs
       - run: node --check client/app.js
       - run: node --check client/enhance.js
+      - run: node --check client/notify-init.js
       - run: npm test
