@@ -73,8 +73,22 @@ try {
   assert.equal((await call(A, "state")).me.name, "alpha Test");
   let sa = await ws(A),
     sb = await ws(B);
+  // Incoming request and acceptance must arrive as distinct, named events.
+  const incoming = wait(sb, "friend_request");
   await call(A, "friend", { username: "bravo" });
+  const request = await incoming;
+  assert.equal(request.name, "alpha Test");
+  assert.equal(request.username, "alpha");
+  const recipient = await call(B, "state");
+  assert.equal(
+    recipient.friends.filter((f) => !f.accepted && f.target === recipient.me.id).length,
+    1,
+  );
+  const accepted = wait(sa, "friend_accepted");
   await call(B, "accept", { username: "alpha" });
+  const approval = await accepted;
+  assert.equal(approval.name, "bravo Test");
+  assert.equal(approval.username, "bravo");
   const { id: dm } = await call(A, "dm", { username: "bravo" });
   const event = wait(sb, "message");
   const { id: msg } = await call(A, "post", {
