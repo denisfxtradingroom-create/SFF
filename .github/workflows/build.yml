@@ -1,0 +1,56 @@
+name: Build SFF installers
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+env:
+  SFF_PUBLIC_URL: https://sff-signal-api.onrender.com
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        shell: pwsh
+        run: npm install --no-audit --no-fund
+      - name: Test backend
+        shell: pwsh
+        run: npm test
+      - name: Build Windows installer
+        shell: pwsh
+        run: .\windows\build.ps1 -Out "$PWD\SFF-Setup.exe" -ServerUrl $env:SFF_PUBLIC_URL
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SFF-Windows
+          path: SFF-Setup.exe
+          retention-days: 30
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK 36
+        run: yes | sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Create temporary signing key
+        run: |
+          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/sff-release.p12" -storetype PKCS12 -storepass sff-build-only -keypass sff-build-only -alias sff -keyalg RSA -keysize 3072 -validity 3650 -dname 'CN=SFF Build,O=SFF,C=RS'
+      - name: Build Android APK
+        shell: pwsh
+        env:
+          SFF_KEY_PASS: sff-build-only
+        run: ./android/build.ps1 -Jdk "$env:JAVA_HOME" -Tools "$env:ANDROID_HOME/build-tools/36.0.0" -Platform "$env:ANDROID_HOME/platforms/android-36" -KeyStore "$env:RUNNER_TEMP/sff-release.p12" -Out "$PWD/SFF-Android.apk" -ServerUrl $env:SFF_PUBLIC_URL
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SFF-Android
+          path: SFF-Android.apk
+          retention-days: 30

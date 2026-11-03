@@ -1,0 +1,19 @@
+name: SFF CI
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --no-audit --no-fund
+      - run: node --check backend/server.mjs
+      - run: node --check backend/db.mjs
+      - run: node --check backend/extras.mjs
+      - run: node --check backend/roles.mjs
+      - run: node --check client/app.js
+      - run: npm test
