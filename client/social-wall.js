@@ -39,7 +39,7 @@
   }
   function avatar(uid,name){
     return '<span class="sffWallAvatar"><span>'+initials(name)+'</span>'+
-      '<img src="'+photo(uid)+'" alt="" loading="lazy" onerror="this.remove()"></span>';
+      '<img src="'+photo(uid)+'" alt="" loading="lazy"></span>';
   }
   const previewText=(text)=>html(text).replace(/\n/g,"\n");
   async function identity(){
@@ -159,6 +159,7 @@
       '</div>').join(""):'<p class="sffWallNoComments">Budi prvi koji će komentarisati.</p>';
   }
   async function open(authorId=null){
+    account=await api("state");
     const user=await identity();
     if(!user?.me?.id)return;
     const requested=authorId===null?null:Number(authorId);
@@ -238,6 +239,10 @@
     }
   }
   window.WebSocket=WallSocket;
+
+  document.addEventListener("error",(event)=>{
+    if(event.target.matches?.(".sffWallAvatar img"))event.target.remove();
+  },true);
 
   document.addEventListener("click",async(event)=>{
     const button=event.target.closest(
