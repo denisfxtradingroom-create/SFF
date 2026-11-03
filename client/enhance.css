@@ -1,0 +1,142 @@
+.sffUnread {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ff334f;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 0 0 2px #1a181e;
+}
+.mobileNav .sffUnread {
+  position: absolute;
+  top: 5px;
+  right: 9px;
+  min-width: 17px;
+  height: 17px;
+  font-size: 9px;
+  box-shadow: 0 0 0 2px #151318;
+}
+.mobileNav button {
+  position: relative;
+}
+.sffDanger {
+  border-color: #8f3342 !important;
+  color: #ff9eab !important;
+  background: #321b22 !important;
+}
+.sffDanger:hover {
+  background: #4b202b !important;
+}
+.sffVideo {
+  display: block;
+  width: min(100%, 560px);
+  max-height: 420px;
+  margin: 10px 0 7px;
+  border-radius: 14px;
+  background: #0b0a0d;
+  border: 1px solid #44363d;
+}
+.sffAudio {
+  display: block;
+  width: min(100%, 480px);
+  margin: 10px 0 7px;
+}
+.sffProfileCard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px;
+  border: 1px solid #493943;
+  background: #18151a;
+  border-radius: 16px;
+}
+.sffProfileCard h3,
+.sffProfileCard p {
+  margin: 0;
+}
+.sffProfileAvatar {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: linear-gradient(135deg, #ff5867, #7c2033);
+  color: white;
+  font-size: 24px;
+  font-weight: 800;
+}
+.sffProfileDetails {
+  margin-top: 14px;
+  padding: 4px 2px;
+}
+.sffSettings {
+  display: grid;
+  gap: 12px;
+}
+.sffSettings label {
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 13px;
+  border: 1px solid #453942;
+  border-radius: 12px;
+  background: #171419;
+  color: #f4eff0;
+  font-size: 14px;
+}
+.sffSettings input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #ff5867;
+}
+.sffSettingsButton {
+  width: 100%;
+  margin-top: 6px;
+}
+.sffCompact .msg {
+  margin: 8px 0 !important;
+}
+.sffCompact .feed {
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+}
+.sffReduced *,
+.sffReduced *::before,
+.sffReduced *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+.sffDeletedState {
+  min-height: 55vh;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  text-align: center;
+  padding: 28px;
+}
+.sffDeletedState img {
+  width: 56px;
+}
+@media (max-width: 760px) {
+  .sffVideo {
+    width: 100%;
+    max-height: 46vh;
+  }
+  .sffAudio {
+    width: 100%;
+  }
+  .toolbar .sffDanger {
+    font-size: 11px;
+  }
+}
