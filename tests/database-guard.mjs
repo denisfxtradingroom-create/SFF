@@ -41,7 +41,7 @@ try {
   const native = new DatabaseSync(":memory:");
   const execute = async ({sql, args = []}) => {
     const stmt = native.prepare(sql);
-    if (stmt.isReader) return {rows: stmt.all(...args)};
+    if (/^\s*(SELECT|WITH|PRAGMA)\b/i.test(sql)) return {rows: stmt.all(...args)};
     const result = stmt.run(...args);
     return {rows:[], rowsAffected: Number(result.changes),
       lastInsertRowid: result.lastInsertRowid};
