@@ -25,26 +25,53 @@ export async function extras({
  CREATE TABLE IF NOT EXISTS timeouts(space INTEGER REFERENCES spaces ON DELETE CASCADE, uid INTEGER, until INTEGER, PRIMARY KEY(space,uid));
  CREATE TABLE IF NOT EXISTS chat_deletions(uid INTEGER, room INTEGER REFERENCES rooms ON DELETE CASCADE, deleted_through INTEGER DEFAULT 0, time INTEGER, PRIMARY KEY(uid,room));`);
 
-  const configured = () => Boolean(process.env.RESEND_API_KEY && process.env.SFF_MAIL_FROM);
+  const configured = () => Boolean(process.env.SFF_MAIL_FROM &&
+    (process.env.BREVO_API_KEY || process.env.RESEND_API_KEY));
   // Recovery mail availability must not unexpectedly lock existing accounts.
   // Verification is a separate, explicit production policy.
   const requireEmail = () => process.env.SFF_REQUIRE_VERIFIED_EMAIL === "1";
 
   async function sendMail(email, subject, content) {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      signal: AbortSignal.timeout(12000),
-      headers: {
-        Authorization: "Bearer " + process.env.RESEND_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: process.env.SFF_MAIL_FROM,
-        to: [email],
-        subject,
-        text: content,
-      }),
-    });
+    const brevoKey = process.env.BREVO_API_KEY;
+    let response;
+    if (brevoKey) {
+      // Brevo supports free-address senders; it may rewrite their From domain.
+      const from = process.env.SFF_MAIL_FROM || "";
+      const match = from.match(/^\\s*(.*?)\\s*<([^<>]+)>\\s*$/);
+      const sender = match
+        ? { name: match[1].trim() || "SFF", email: match[2].trim() }
+        : { name: "SFF", email: from.trim() };
+      response = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        signal: AbortSignal.timeout(12000),
+        headers: {
+          "api-key": brevoKey,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          sender,
+          to: [{ email }],
+          subject,
+          textContent: content,
+        }),
+      });
+    } else {
+      response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        signal: AbortSignal.timeout(12000),
+        headers: {
+          Authorization: "Bearer " + process.env.RESEND_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: process.env.SFF_MAIL_FROM,
+          to: [email],
+          subject,
+          text: content,
+        }),
+      });
+    }
     demand(response.ok, "Slanje pošte nije uspelo.", 503);
   }
 
