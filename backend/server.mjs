@@ -552,7 +552,10 @@ async function action(a, b, u, res, req) {
       b.pins ? 1 : 0,
     )).reverse();
     const out = [];
-    for (const m of rows) {
+    for (const row of rows) {
+      const expired = isTimedMedia(row.mime) && Number(row.time) <= expiryCutoff();
+      if (expired && !String(row.body || "").trim()) continue;
+      const m = expired ? { ...row, file: null, mime: null } : row;
       const thread = await one("select count(*) n from thread_posts where root=?", m.id);
       out.push({
         ...m,
