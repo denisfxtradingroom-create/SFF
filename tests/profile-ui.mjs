@@ -60,8 +60,9 @@ assert(app.includes("const authoredShellParts = new Map()") &&
 assert(app.includes("const authoredFeedNodes = new WeakMap()") &&
   app.includes("authoredFeedNodes.get(existing)"),
   "New messages must not destroy old audio/video playback nodes");
-assert(app.includes("updated.some((node, i) => node !== existing[i])"),
-  "Do not replace all chat DOM children when none changed");
+assert(app.includes("feed.insertBefore(node, cursor)") &&
+  !app.includes("feed.replaceChildren(...updated)"),
+  "Do not detach existing message or media elements when new messages arrive");
 assert(app.includes('a === "callFree"') &&
   app.includes("crypto.getRandomValues") &&
   app.includes("https://meet.jit.si/SFF-") &&
@@ -71,7 +72,7 @@ assert(app.includes('a === "callFree"') &&
 const wall=read("client/social-wall.js");
 assert(wall.includes("const postDomState=new WeakMap()") &&
   wall.includes("postStaticKey") &&
-  wall.includes("el.replaceChildren(...next)") &&
+  wall.includes("el.insertBefore(node,cursor)") &&
   wall.includes('feed=feed.map(p=>p.id===item.id?item:p);\n        draw();'),
   "Reacting to a post must preserve unchanged post cards");
 const voice=read("client/voice.js");
