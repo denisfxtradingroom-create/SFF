@@ -147,6 +147,103 @@ let data,
   typingTimer,
   retry = 0;
 const lastReadSent = new Map();
+let dmCall = null;
+function showDmCall() {
+  let overlay = document.querySelector("#sffCallOverlay");
+  if (!dmCall) { overlay?.remove(); return; }
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "sffCallOverlay";
+    overlay.className = "sffCallOverlay";
+    document.body.appendChild(overlay);
+  }
+  const kind = dmCall.kind === "video" ? "Video poziv" : "Glasovni poziv";
+  const heading = dmCall.status === "incoming"
+    ? "Dolazni " + kind.toLowerCase()
+    : dmCall.status === "outgoing" ? "Pozivanje…" : kind + " u toku";
+  const actions = dmCall.status === "incoming"
+    ? '<button type="button" class="sffCallAnswer" data-sff-call="accept">Javi se</button>' +
+      '<button type="button" class="sffCallEnd" data-sff-call="decline">Odbij</button>'
+    : '<button type="button" class="sffCallEnd" data-sff-call="end">Prekini poziv</button>';
+  // Build only on status transitions; voice.js owns media nodes after connection.
+  overlay.innerHTML = '<section class="sffCallPanel" role="dialog" aria-modal="true">' +
+    "<h2>" + esc(heading) + "</h2>" +
+    "<p>" + esc(dmCall.status === "incoming" ? (dmCall.name || "Korisnik") + " te zove" :
+      dmCall.status === "outgoing" ? "Čekamo odgovor…" : "Privatni poziv je povezan.") + "</p>" +
+    '<div class="sffCallActions">' + actions + "</div>" +
+    (dmCall.status === "active" ? '<div id="voice"></div>' : "") +
+    "</section>";
+}
+function endDmCall(send = false) {
+  const former = dmCall;
+  dmCall = null;
+  if (send && former && socket?.readyState === 1)
+    sendVoice({type:"call_end",room:former.room});
+  if (former?.status === "active") voiceLeave();
+  showDmCall();
+}
+async function dmCallEvent(event) {
+  if (!["call_incoming","call_outgoing","call_accepted",
+        "call_ended","call_unavailable"].includes(event.type)) return false;
+  if (event.type === "call_unavailable") {
+    if (dmCall?.room === event.room) endDmCall(false);
+    note(event.reason || "Korisnik trenutno nije dostupan.");
+    return true;
+  }
+  if (event.type === "call_ended") {
+    if (dmCall?.room === event.room) {
+      endDmCall(false);
+      if (event.reason !== "answered_on_other_device")
+        note(event.reason === "missed" ? "Nije odgovoreno na poziv." : "Poziv je završen.");
+    }
+    return true;
+  }
+  if (event.type === "call_incoming") {
+    if (dmCall) return true;
+    dmCall = {room:event.room,kind:event.kind,name:event.name,status:"incoming"};
+    showDmCall();
+    try {
+      navigator.vibrate?.([180,110,180]);
+      if (document.hidden) {
+        if (window.SFFAndroid?.show) window.SFFAndroid.show("Dolazni SFF poziv: " + event.name);
+        else if (window.Notification?.permission === "granted")
+          new Notification("Dolazni SFF poziv",{
+            body:(event.name || "Prijatelj") + " te zove.",tag:"sff-incoming-call"});
+      }
+    } catch {}
+    return true;
+  }
+  if (event.type === "call_outgoing") return true;
+  if (event.type === "call_accepted" && dmCall?.room === event.room) {
+    dmCall.status = "active";
+    showDmCall();
+    try {
+      await voiceAction("join",dmCall.room);
+      if (dmCall?.status === "active" && dmCall.kind === "video")
+        await voiceAction("camera",dmCall.room);
+    } catch (error) {
+      note(error.message);
+      endDmCall(true);
+    }
+    return true;
+  }
+  return true;
+}
+document.addEventListener("click",(event)=>{
+  const control = event.target.closest("[data-sff-call]");
+  if (!control || !dmCall) return;
+  event.preventDefault();
+  const action = control.dataset.sffCall;
+  try {
+    if (action === "accept") {
+      sendVoice({type:"call_accept",room:dmCall.room});
+      control.disabled = true;
+    } else if (action === "decline") {
+      sendVoice({type:"call_decline",room:dmCall.room});
+      endDmCall(false);
+    } else if (action === "end") endDmCall(true);
+  } catch (error) { note(error.message); }
+});
 window.SFFNotificationIdentity = () => data?.me
   ? String(data.me.id) + ":" + String(data.me.username).toLowerCase()
   : null;
@@ -376,6 +473,9 @@ function render() {
       ? btn("search", "Pretraga") +
         btn("pins", pins ? "Sve poruke" : "Igle") +
         btn("alerts", "Zvono") +
+        (r.kind === "dm"
+          ? btn("callAudio", "☎ Poziv") + btn("callVideo", "▣ Video")
+          : "") +
         (sp && sp.role !== "Member" ? btn("category", "Kategorija") : "")
       : "") +
     "</div></header>" +
@@ -646,6 +746,10 @@ function live() {
     }
   };
   socket.onclose = () => {
+    if (dmCall) {
+      endDmCall(false);
+      note("Poziv je prekinut zbog gubitka veze.");
+    }
     resumeVoice = activeVoiceRoom();
     voiceLeave();
     if (alive) {
@@ -657,6 +761,7 @@ function live() {
   socket.onmessage = async (e) => {
     try {
       const v = JSON.parse(e.data);
+      if (await dmCallEvent(v)) return;
       if (await voiceEvent(v)) return;
       if (v.type === "error") {
         if (activeVoiceRoom()) voiceLeave();
@@ -931,7 +1036,19 @@ async function act(a, id) {
     return navigate(
       { spacesPage: "spaces", membersPage: "members", chatPage: "chat" }[a],
     );
-  if (a.startsWith("voice-")) return voiceAction(a.slice(6), room);
+  if (a.startsWith("voice-")) {
+    if (a === "voice-leave" && dmCall) return endDmCall(true);
+    return voiceAction(a.slice(6), dmCall?.room || room);
+  }
+  if (a === "callAudio" || a === "callVideo") {
+    if (current()?.kind !== "dm" || dmCall) return;
+    if (socket?.readyState !== 1) throw Error("Veza za pozive nije dostupna.");
+    const kind = a === "callVideo" ? "video" : "audio";
+    dmCall = {room,kind,status:"outgoing"};
+    showDmCall();
+    sendVoice({type:"call_invite",room,kind});
+    return;
+  }
   if (a === "space" || a === "friends") {
     if (a === "friends" && !space && page === "friends") {
       friendsDialog();
