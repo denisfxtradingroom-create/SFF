@@ -1,6 +1,7 @@
-param([Parameter(Mandatory)]$Out,[string]$Node=(Get-Command node -ErrorAction SilentlyContinue).Source,[string]$ServerUrl="")
+param([Parameter(Mandatory)]$Out,[string]$Node=(Get-Command node -ErrorAction SilentlyContinue).Source,[string]$ServerUrl="",[string]$PortableOut="")
 $ErrorActionPreference='Stop'
 $Out=[IO.Path]::GetFullPath($Out)
+if($PortableOut){$PortableOut=[IO.Path]::GetFullPath($PortableOut)}
 $root=Split-Path $PSScriptRoot
 Push-Location $PSScriptRoot
 try {
@@ -46,6 +47,27 @@ Copy-Item $loader "$stage/payload/WebView2Loader.dll"
 Copy-Item "$PSScriptRoot/WebView2/LICENSE.txt" "$stage/payload/WebView2-LICENSE.txt"
 Copy-Item "$PSScriptRoot/WebView2/NOTICE.txt" "$stage/payload/WebView2-NOTICE.txt"
 Copy-Item $iconPath "$stage/payload/SFF-Merkat-v3.ico"
+if($PortableOut){
+  # Portable ZIP contains the normal WebView2 app and its DLLs.
+  # Do not put another executable extractor around this payload.
+  $portable=Join-Path $stage "portable"
+  New-Item -ItemType Directory -Path $portable -Force | Out-Null
+  Copy-Item (Join-Path $stage "payload/*") $portable -Recurse -Force
+  @(
+    "SFF for Windows - portable package"
+    ""
+    "1. Extract all contents of this ZIP into one folder."
+    "2. Scan the extracted files with Microsoft Defender."
+    "3. If Microsoft Defender flags a file, do not bypass it; check the exact threat name."
+    "4. Launch SFF.exe from that folder only after verification."
+    ""
+    "SFF uses Microsoft Edge WebView2 and connects to $ServerUrl"
+    "No installation or administrator permissions are required."
+    "Built from the public SFF source repository."
+  ) | Set-Content -Path (Join-Path $portable "README.txt") -Encoding UTF8
+  Compress-Archive -Path (Join-Path $portable "*") -DestinationPath $PortableOut -CompressionLevel Optimal -Force
+  Write-Host "SFF portable package: $PortableOut"
+}
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [IO.Compression.ZipFile]::CreateFromDirectory("$stage/payload","$stage/payload.zip")
 & $csc /nologo /target:winexe /codepage:65001 /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll /r:Microsoft.CSharp.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll /win32icon:$iconPath "/resource:$stage/payload.zip,payload" "/out:$Out" .\Setup.cs
