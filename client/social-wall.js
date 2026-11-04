@@ -182,9 +182,14 @@
         if(commentOpen.has(p.id))loadCommentsFor.push(p.id);
       }
     }
-    const previous=[...el.children];
-    if(previous.length!==next.length || next.some((node,i)=>node!==previous[i]))
-      el.replaceChildren(...next);
+    // Preserve connected images, expanded comments and focused inputs.
+    // Replacing every card would visibly flash even when unchanged.
+    let cursor=el.firstChild;
+    for(const node of next){
+      if(node===cursor)cursor=cursor.nextSibling;
+      else el.insertBefore(node,cursor);
+    }
+    while(cursor){const following=cursor.nextSibling;cursor.remove();cursor=following;}
     for(const id of loadCommentsFor)loadComments(id).catch(showError);
   }
   async function loadComments(id){
