@@ -1088,7 +1088,13 @@ document.addEventListener("submit", async (e) => {
       b.remember = Boolean(f.querySelector('[name="remember"]')?.checked);
       data = await api(a, b);
       if (needsVerification()) {
-        verificationGate(a === "register" ? "Poslali smo ti verifikacioni kod. Unesi ga da aktiviraš nalog." : "Ovaj nalog još nema potvrđen email. Unesi kod ili zatraži novi.");
+        verificationGate(
+          data.emailDeliveryFailed
+            ? "Nalog je sačuvan, ali slanje koda trenutno nije uspelo. Nije potrebno praviti drugi nalog — izaberi Pošalji novi kod kada servis proradi."
+            : a === "register"
+              ? "Nalog je napravljen. Unesi verifikacioni kod iz emaila."
+              : "Ovaj nalog još nema potvrđen email. Unesi kod ili zatraži novi.",
+        );
         return;
       }
       await start();

@@ -6,6 +6,11 @@ globalThis.fetch = async (url, init) => {
     return original(url, init);
   const mail = JSON.parse(init.body);
   writeFileSync(process.env.SFF_TEST_OUTBOX, JSON.stringify(mail));
+  if (process.env.SFF_TEST_MAIL_FAIL === "1") {
+    return new Response(JSON.stringify({ error: "Simuliran prekid slanja pošte" }), {
+      status: 503,
+    });
+  }
   return new Response(JSON.stringify({ id: "local-integration-test" }), {
     status: 200,
   });
