@@ -62,6 +62,34 @@ try {
   await call(invalid, "register", duplicate, 409);
   await call(invalid, "register", { ...duplicate, username: "denis",
     firstName: "Another", lastName: "Person" }, 409);
+
+  // A previously saved signup can be safely resumed, but only by the owner.
+  // This is important when an email provider fails after the user is saved.
+  const retry = account();
+  const sameAccount = await call(retry, "register", {
+    username: "denis", email: "denis@example.test",
+    emailConfirm: "denis@example.test",
+    password: "advanced-test-password",
+    passwordConfirm: "advanced-test-password",
+    firstName: "denis", lastName: "Test",
+  });
+  assert.equal(sameAccount.me.id, (await call(A, "state")).me.id);
+  assert.equal((await call(retry, "state")).me.username, "denis");
+  assert.equal((await call(A, "state")).me.username, "denis");
+  await call(account(), "register", {
+    username: "denis", email: "denis@example.test",
+    emailConfirm: "denis@example.test",
+    password: "wrong-password",
+    passwordConfirm: "wrong-password",
+    firstName: "denis", lastName: "Test",
+  }, 409);
+  await call(account(), "register", {
+    username: "denis", email: "not-denis@example.test",
+    emailConfirm: "not-denis@example.test",
+    password: "advanced-test-password",
+    passwordConfirm: "advanced-test-password",
+    firstName: "denis", lastName: "Test",
+  }, 409);
   await call(B, "profile", { name: "denis Test", about: "", status: "Online", custom: "" }, 409);
   const loginBody = JSON.stringify({ username: "denis",
     password: "advanced-test-password", remember: false });
