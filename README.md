@@ -21,7 +21,7 @@ Kada je `SFF_REQUIRE_VERIFIED_EMAIL=1`, korisnik dobija jednokratni email kod ko
 - local/test: Node `node:sqlite`
 - production: `@tursodatabase/serverless/compat` i Turso Cloud kada su postavljeni `TURSO_DATABASE_URL` i `TURSO_AUTH_TOKEN`
 
-Turso credentials pripadaju samo backendu. Nikada ih ne ugrađuj u APK/EXE ili source repo.
+Turso credentials pripadaju samo backendu. Nikada ih ne ugrađuj u APK/EXE ili source repo. Bez Turso baze Render Free gubi naloge pri restartu. Uputstvo za bezbedno povezivanje: [TURSO-TRAJNA-BAZA.md](TURSO-TRAJNA-BAZA.md).
 
 ## Production env
 
@@ -29,7 +29,8 @@ Turso credentials pripadaju samo backendu. Nikada ih ne ugrađuj u APK/EXE ili s
 HOST=0.0.0.0
 SFF_HTTPS=1
 SFF_REQUIRE_VERIFIED_EMAIL=1
-TURSO_DATABASE_URL=turso://...
+SFF_REQUIRE_DURABLE_DB=1
+TURSO_DATABASE_URL=libsql://...
 TURSO_AUTH_TOKEN=...
 RESEND_API_KEY=...
 SFF_MAIL_FROM=SFF <noreply@example.com>

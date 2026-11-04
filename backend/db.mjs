@@ -26,7 +26,7 @@ function cleanStatements(sql) {
     .filter((s) => !/^PRAGMA\b/i.test(s));
 }
 
-function wrapRemote(client) {
+export function wrapRemote(client) {
   const execute = async (sql, args = []) => client.execute({ sql, args });
   const all = async (sql, ...args) => {
     const result = await execute(sql, args);
@@ -112,17 +112,33 @@ function wrapLocal(native) {
 }
 
 export async function openDatabase() {
-  if (process.env.TURSO_DATABASE_URL) {
-    if (!process.env.TURSO_AUTH_TOKEN) {
-      throw new Error("TURSO_AUTH_TOKEN je obavezan kada je TURSO_DATABASE_URL podešen.");
+  const url = (process.env.TURSO_DATABASE_URL || "").trim();
+  const token = (process.env.TURSO_AUTH_TOKEN || "").trim();
+
+  if (Boolean(url) !== Boolean(token)) {
+    throw new Error("Turso nije potpuno podešen: potrebni su URL i token.");
+  }
+
+  if (url) {
+    let endpoint;
+    try { endpoint = new URL(url); }
+    catch { throw new Error("Neispravna Turso adresa."); }
+    if (!["libsql:", "https:"].includes(endpoint.protocol)) {
+      throw new Error("Turso adresa mora koristiti libsql:// ili https://.");
     }
     const { createClient } = await import("@tursodatabase/serverless/compat");
-    return wrapRemote(
-      createClient({
-        url: process.env.TURSO_DATABASE_URL,
-        authToken: process.env.TURSO_AUTH_TOKEN,
-      }),
-    );
+    const client = createClient({ url, authToken: token });
+    try {
+      await client.execute("select 1 as ok");
+      return wrapRemote(client);
+    } catch (error) {
+      try { client.close(); } catch {}
+      throw new Error("Povezivanje sa trajnom Turso bazom nije uspelo.", { cause: error });
+    }
+  }
+
+  if (process.env.SFF_REQUIRE_DURABLE_DB === "1") {
+    throw new Error("Trajna Turso baza je obavezna. SFF ne sme da pređe na privremeni SQLite.");
   }
 
   const dir = resolve(process.env.SFF_DATA || "sff-data");

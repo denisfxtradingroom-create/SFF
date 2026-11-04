@@ -1,7 +1,7 @@
 name: SFF production database safety check
 on:
   push:
-    branches: [sff-v06-online-notifications]
+    branches: [sff-turso-durable-storage-guard]
   workflow_dispatch:
 jobs:
   check-database:
