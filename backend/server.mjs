@@ -2,6 +2,7 @@ import { rolePolicy } from "./roles.mjs";
 import { extras } from "./extras.mjs";
 import { socialWall } from "./wall.mjs";
 import { openDatabase } from "./db.mjs";
+import { createDmCallManager } from "./dm-calls.mjs";
 import { addMessageMetadata } from "./message-metadata.mjs";
 import { initRetention, purgeExpiredContent, retentionCutoff } from "./retention.mjs";
 import { resetSffWhenRequested } from "./account-reset.mjs";
@@ -99,6 +100,7 @@ const push = async (event, filter) => {
     if (s.readyState === 1 && (await filter(s))) s.send(JSON.stringify(event));
   }
 };
+const dmCalls = createDmCallManager({sockets,roomFor,all,one,demand,limit});
 const extra = await extras({
   db,
   one,
@@ -912,6 +914,7 @@ server.on("upgrade", async (req, socket, head) => {
       s.voice = null;
     };
     s.on("close", () => {
+      dmCalls.disconnected(s);
       void leave();
       sockets.delete(s);
     });
@@ -921,25 +924,23 @@ server.on("upgrade", async (req, socket, head) => {
         demand(await session(token));
         limit("ws" + uid, 600);
         const b = JSON.parse(raw);
+        if (await dmCalls.handle(s,b)) return;
         if (b.type === "leave") return await leave();
         const r = await roomFor(b.room, uid);
-        demand(
-          r?.kind === "voice" &&
-            r.canVoice &&
-            !await one(
-              "select 1 from timeouts where space=? and uid=? and until>?",
-              r.space,
-              uid,
-              Date.now(),
-            ),
-        );
+        const allowedDmCall = r?.kind === "dm" && dmCalls.authorized(s,r.id);
+        const allowedVoiceRoom = r?.kind === "voice" && r.canVoice &&
+          !await one(
+            "select 1 from timeouts where space=? and uid=? and until>?",
+            r.space,uid,Date.now()
+          );
+        demand(allowedDmCall || allowedVoiceRoom,"Nemaš pristup ovom pozivu.",403);
         if (b.type === "voice") {
           await leave();
           const peers = [];
           for (const p of sockets) {
             if (p.voice === r.id && (await roomFor(r.id, p.uid))) peers.push(p);
           }
-          demand(peers.length < 8, "Kanal je pun.");
+          demand(peers.length < (allowedDmCall ? 2 : 8), "Kanal je pun.");
           s.voice = r.id;
           s.send(
             JSON.stringify({
