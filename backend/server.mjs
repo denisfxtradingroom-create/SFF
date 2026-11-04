@@ -153,7 +153,8 @@ try {
   console.error("[SFF storage check] database=" + (db.remote ? "turso" : "local") +
     " user_count=" + Number(current?.total || 0) +
     " mail_configured=" + extra.configured() +
-    " verification_required=" + extra.requireEmail());
+    " verification_required=" + extra.requireEmail() +
+    " push_configured=" + pushConfigured());
 } catch (error) {
   console.error("[SFF storage check] unable to read account count:", error.message);
 }
