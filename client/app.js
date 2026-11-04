@@ -687,6 +687,7 @@ function drawFeed(bottom = true) {
               : "Počni razgovor",
           pins || search ? "" : "Prva poruka može biti tvoja.",
         ));
+  if (!list.length && feed.innerHTML === markup) return;
   // Only replace nodes whose SERVER DATA changed. Other scripts add playback,
   // avatar dots and badges, so comparing their mutated outerHTML is incorrect.
   const wasNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 88;
