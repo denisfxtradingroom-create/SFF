@@ -3,6 +3,10 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  pull_request:
+    paths:
+      - 'windows/**'
+      - '.github/workflows/build.yml'
 
 env:
   SFF_PUBLIC_URL: https://sff-signal-api.onrender.com
