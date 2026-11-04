@@ -234,7 +234,7 @@
     const id = identity;
     const count = id ? history(id).filter((x) =>
       x.id > Number(localStorage.getItem(readKey(id)) || 0)).length : 0;
-    for (const btn of document.querySelectorAll("[data-sff-home]")) {
+    for (const btn of document.querySelectorAll("[data-social-center]")) {
       const badge = btn.querySelector(".sffSocialCounter");
       if (!count) { badge?.remove(); continue; }
       if (badge) {
