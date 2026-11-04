@@ -1,6 +1,6 @@
 // Ephemeral, authenticated two-person call signaling.
 // No polling or Turso writes. Existing voice-channel WebRTC transports the media.
-export function createDmCallManager({sockets,roomFor,all,one,demand,limit}) {
+export function createDmCallManager({sockets,roomFor,all,one,demand,limit,callPush=null}) {
   const calls = new Map();
   const send = (socket,event) => {
     if(socket?.readyState===1)socket.send(JSON.stringify(event));
@@ -36,22 +36,33 @@ export function createDmCallManager({sockets,roomFor,all,one,demand,limit}) {
       const busy=[...calls.values()].some((c)=>
         [c.caller,c.callee].includes(who)||[c.caller,c.callee].includes(other));
       demand(!busy,"Jedan od korisnika je već u pozivu.",409);
-      if(!targets(other).length) {
+      const connected = targets(other);
+      if(!connected.length && !callPush) {
         send(socket,{type:"call_unavailable",room,
-          reason:"Primalac trenutno nije povezan. Pozivi u ugašenoj aplikaciji zahtevaju push servis."});
+          reason:"Primalac trenutno nije povezan."});
         return true;
       }
       const type=b.kind==="video"?"video":"audio";
       const sender=await one("select name from users where id=?",who);
       call={room,caller:who,callee:other,callerPeer:socket.peer,calleePeer:null,
-        status:"ringing",kind:type};
+        callerName:sender?.name||"Korisnik",status:"ringing",kind:type};
       calls.set(room,call);
       call.timer=setTimeout(()=>finish(call,"missed"),45000);
       call.timer.unref?.();
       send(socket,{type:"call_outgoing",room,kind:type});
-      for(const recipient of targets(other))
+      for(const recipient of connected)
         send(recipient,{type:"call_incoming",room,kind:type,
           name:sender?.name||"Korisnik"});
+      if(!connected.length && callPush) {
+        // Keep the invitation active during push delivery; a returning app
+        // receives call_incoming upon establishing an authenticated WebSocket.
+        void callPush.sendCall(other,{room,kind:type,name:sender?.name||"Korisnik"})
+          .then((delivered)=>{ if(!delivered) finish(call,"unavailable"); })
+          .catch((error)=>{
+            console.warn("[SFF calls] Push unavailable:",error.message);
+            finish(call,"unavailable");
+          });
+      }
       return true;
     }
     demand(call && [call.caller,call.callee].includes(who),
@@ -90,11 +101,18 @@ export function createDmCallManager({sockets,roomFor,all,one,demand,limit}) {
       [c.callerPeer,c.calleePeer].includes(socket.peer) &&
       [c.caller,c.callee].includes(socket.uid));
   };
+  const connected=(socket)=>{
+    for(const call of calls.values()) {
+      if(call.status==="ringing" && call.callee===socket.uid)
+        send(socket,{type:"call_incoming",room:call.room,kind:call.kind,
+          name:call.callerName||"Prijatelj"});
+    }
+  };
   const disconnected=(socket)=>{
     for(const call of [...calls.values()])
       if(call.callerPeer===socket.peer ||
         (call.calleePeer && call.calleePeer===socket.peer))
         finish(call,"disconnected");
   };
-  return {handle,authorized,disconnected};
+  return {handle,authorized,disconnected,connected};
 }
