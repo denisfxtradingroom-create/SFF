@@ -176,13 +176,15 @@ async function state(u) {
     "coalesce(d.deleted_through,0) deleted_through," +
     "(select count(*) from messages m where m.room=r.id and m.uid!=? " +
     "and m.id>max(coalesce(rd.last,0),coalesce(d.deleted_through,0))) unread," +
+    "coalesce((select max(other.last) from reads other where other.room=r.id " +
+    "and other.uid!=? and r.kind='dm'),0) seen," +
     "coalesce(meta.category,'') category " +
     "from rooms r " +
     "left join reads rd on rd.room=r.id and rd.uid=? " +
     "left join chat_deletions d on d.room=r.id and d.uid=? and r.space is null " +
     "left join room_meta meta on meta.room=r.id " +
     "where r.id in (" + markers + ")",
-    u, u, u, ...roomIds
+    u, u, u, u, ...roomIds
   ) : [];
   const roomInfo = new Map(roomRows.map((row) => [row.id, row]));
   const dmRows = roomIds.length ? await all(
@@ -193,14 +195,9 @@ async function state(u) {
     u, ...roomIds
   ) : [];
   const dmNames = new Map(dmRows.map((row) => [row.room, row.names]));
-  // One read for all visible private conversations, not one per message.
-  const seenRows = roomIds.length ? await all(
-    "select d.room,max(d.last) last from reads d " +
-    "join rooms r on r.id=d.room and r.kind='dm' " +
-    "where d.uid!=? and d.room in (" + markers + ") group by d.room",
-    u, ...roomIds
-  ) : [];
-  const dmSeen = Object.fromEntries(seenRows.map((row) => [row.room, Number(row.last)]));
+  // Read receipts piggyback on the existing room query: no extra Turso round trip.
+  const dmSeen = Object.fromEntries(roomRows.map((row) =>
+    [row.id, Number(row.seen || 0)]));
   const rooms = [];
   for (const x of ids) {
     const r = await roomFor(x.id, u);
