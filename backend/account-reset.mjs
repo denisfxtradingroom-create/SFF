@@ -10,7 +10,7 @@ const deletionOrder = [
   "challenges", "preferences", "artwork",
   "wall_likes", "wall_comments", "wall_posts",
   "messages", "participants", "rooms", "members", "spaces",
-  "friends", "blocks", "sessions", "users",
+  "friends", "blocks", "sff_push_devices", "sessions", "users",
 ];
 
 export async function resetAppDataOnce(db, resetId) {

@@ -147,6 +147,13 @@ let data,
   typingTimer,
   retry = 0;
 const lastReadSent = new Map();
+// Native Android FCM token reaches the authenticated SFF server via existing cookie.
+// Never expose Firebase server credentials to the browser or store them locally.
+window.SFFOnPushToken = async (token) => {
+  if (!data?.me || typeof token !== "string") return;
+  try { await api("pushRegister",{token}); }
+  catch (error) { console.warn("SFF native push registration unavailable."); }
+};
 let dmCall = null;
 function showDmCall() {
   let overlay = document.querySelector("#sffCallOverlay");
@@ -1472,6 +1479,8 @@ async function start() {
   render();
   await historyLoad();
   live();
+  try { window.SFFAndroid?.registerPush?.(); }
+  catch { /* Normal in browser and Windows WebView2. */ }
 }
 let touchX = 0,
   touchY = 0;

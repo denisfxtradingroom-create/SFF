@@ -3,6 +3,7 @@ import { extras } from "./extras.mjs";
 import { socialWall } from "./wall.mjs";
 import { openDatabase } from "./db.mjs";
 import { createDmCallManager } from "./dm-calls.mjs";
+import { createPushDevices, pushConfigured } from "./call-push.mjs";
 import { addMessageMetadata } from "./message-metadata.mjs";
 import { initRetention, purgeExpiredContent, retentionCutoff } from "./retention.mjs";
 import { resetSffWhenRequested } from "./account-reset.mjs";
@@ -100,7 +101,11 @@ const push = async (event, filter) => {
     if (s.readyState === 1 && (await filter(s))) s.send(JSON.stringify(event));
   }
 };
-const dmCalls = createDmCallManager({sockets,roomFor,all,one,demand,limit});
+const callPush = await createPushDevices(db);
+const dmCalls = createDmCallManager({
+  sockets,roomFor,all,one,demand,limit,
+  callPush: pushConfigured() ? callPush : null
+});
 const extra = await extras({
   db,
   one,
@@ -148,7 +153,8 @@ try {
   console.error("[SFF storage check] database=" + (db.remote ? "turso" : "local") +
     " user_count=" + Number(current?.total || 0) +
     " mail_configured=" + extra.configured() +
-    " verification_required=" + extra.requireEmail());
+    " verification_required=" + extra.requireEmail() +
+    " push_configured=" + pushConfigured());
 } catch (error) {
   console.error("[SFF storage check] unable to read account count:", error.message);
 }
@@ -375,8 +381,19 @@ async function action(a, b, u, res, req) {
   }
   const update = (uids) => push({ type: "state" }, (s) => uids.includes(s.uid));
   if (a === "state") return await state(u);
+  if (a === "pushRegister") {
+    demand(pushConfigured(),"Firebase push servis još nije aktiviran.",503);
+    limit("push-register:" + u,20);
+    await callPush.register(u,digest(auth(req)),b.token);
+    return {registered:true};
+  }
+  if (a === "pushUnregister") {
+    await callPush.unregister(u,digest(auth(req)),b.token);
+    return {};
+  }
   if (a === "logout") {
     const t = digest(auth(req));
+    await callPush.forgetSession(t);
     await run("delete from sessions where token=?", t);
     for (const s of sockets) if (s.token === t) s.close();
     res.setHeader("Set-Cookie", "sff=; Path=/; Max-Age=0");
@@ -902,6 +919,7 @@ server.on("upgrade", async (req, socket, head) => {
     s.token = token;
     s.peer = key().slice(0, 16);
     sockets.add(s);
+    dmCalls.connected(s);
     const leave = async () => {
       if (s.voice)
         await push(

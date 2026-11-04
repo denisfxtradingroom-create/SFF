@@ -16,3 +16,11 @@ windows/mark.ico
 
 node_modules/
 backend/vendor/
+
+# Firebase private credentials and generated Android build output
+android/push/app/google-services.json
+android/push/.gradle/
+android/push/app/build/
+android/push/.gradle-cache/
+*firebase*service-account*.json
+*sff-release*.p12
