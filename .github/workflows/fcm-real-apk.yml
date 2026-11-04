@@ -1,0 +1,45 @@
+name: Build Android SFF Firebase APK
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'android/**'
+      - '.github/workflows/fcm-real-apk.yml'
+  push:
+    branches: [main]
+jobs:
+  android-push-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "/usr/local/lib/android/sdk/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "/usr/local/lib/android/sdk/platform-tools" >> "$GITHUB_PATH"
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Validate SFF Firebase config
+        run: |
+          python3 - <<'PY'
+          import json
+          d=json.load(open("android/push/app/google-services.json"))
+          assert d["project_info"]["project_id"] == "sff-36587"
+          assert any(c["client_info"]["android_client_info"]["package_name"] == "app.sff.signal" for c in d["client"])
+          print("Verified Android Firebase project configuration")
+          PY
+      - name: Build Android APK with Firebase
+        run: gradle --no-daemon -p android/push :app:assembleDebug
+      - name: Publish APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SFF-Android-Firebase-test
+          path: android/push/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
