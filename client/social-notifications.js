@@ -42,8 +42,8 @@
     if (value) identity = value;
     return value;
   }
-  function historyKey(id) { return "sff.social.history." + id; }
-  function readKey(id) { return "sff.social.lastRead." + id; }
+  function historyKey(id) { return "sff.social.history.v2." + id; }
+  function readKey(id) { return "sff.social.lastRead.v2." + id; }
   function history(id) {
     try {
       const rows = JSON.parse(localStorage.getItem(historyKey(id)) || "[]");
