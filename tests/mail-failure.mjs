@@ -62,7 +62,14 @@ try {
     password: "different-password", passwordConfirm: "different-password" }, 409);
   await call("register", { ...signup,
     email: "other@example.test", emailConfirm: "other@example.test" }, 409);
-  console.log("SFF: email outage cannot strand signups or allow account takeover.");
+  // Recovery never reveals whether an email address exists, even if the
+  // provider rejects delivery or per-account throttling is reached.
+  const known = await call("recoverUsername", { email: signup.email });
+  const unknown = await call("recoverUsername", { email: "unknown@example.test" });
+  assert.equal(known.message, unknown.message);
+  await call("forgot", { email: signup.email });
+  await call("forgot", { email: "unknown@example.test" });
+  console.log("SFF: email outage cannot strand signups or expose account existence.");
 } finally {
   server.kill();
 }
