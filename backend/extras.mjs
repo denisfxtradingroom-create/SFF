@@ -143,22 +143,41 @@ export async function extras({
 
   async function detailedPush(r, event) {
     const mentions = event.mentions || [];
-    for (const s of sockets) {
-      if (s.readyState !== 1 || !(await roomFor(r.id, s.uid))) continue;
-      let notify = s.uid !== event.uid;
-      if (notify) {
-        const person = await one("select username,status from users where id=?", s.uid);
-        if (person?.status === "Do Not Disturb") notify = false;
-        const roomAlert = await one("select policy from alerts where uid=? and scope=?", s.uid, "r" + r.id);
-        const spaceAlert = r.space
-          ? await one("select policy from alerts where uid=? and scope=?", s.uid, "s" + r.space)
-          : null;
-        const policy = roomAlert?.policy || spaceAlert?.policy || "all";
-        if (policy === "off") notify = false;
-        if (policy === "mentions") {
-          const role = (await roomFor(r.id, s.uid))?.role?.toLowerCase();
-          notify = mentions.some((n) => [person?.username, "everyone", role].filter(Boolean).includes(n));
-        }
+    const active = [...sockets].filter((s) => s.readyState === 1);
+    if (!active.length) return;
+    // Authorize once per user, not once for every tab / connected device.
+    const users = [...new Set(active.map((s) => s.uid))];
+    const authorized = new Map();
+    for (const uid of users) {
+      const room = await roomFor(r.id, uid);
+      if (room) authorized.set(uid, room);
+    }
+    if (!authorized.size) return;
+    const ids = [...authorized.keys()];
+    const placeholders = ids.map(() => "?").join(",");
+    const spaceScope = r.space ? "s" + r.space : null;
+    // One indexed policy query replaces 2-3 queries per connected recipient.
+    const settings = await all(
+      "select u.id,u.username,u.status," +
+      "(select policy from alerts where uid=u.id and scope=?) roomPolicy," +
+      (spaceScope
+        ? "(select policy from alerts where uid=u.id and scope=?) spacePolicy "
+        : "null spacePolicy ") +
+      "from users u where u.id in (" + placeholders + ")",
+      "r" + r.id, ...(spaceScope ? [spaceScope] : []), ...ids
+    );
+    const byId = new Map(settings.map((row) => [row.id, row]));
+    for (const s of active) {
+      const room = authorized.get(s.uid);
+      if (!room) continue;
+      const person = byId.get(s.uid);
+      let notify = s.uid !== event.uid && person?.status !== "Do Not Disturb";
+      const policy = person?.roomPolicy || person?.spacePolicy || "all";
+      if (policy === "off") notify = false;
+      else if (policy === "mentions") {
+        const role = room.role?.toLowerCase();
+        notify = notify && mentions.some((n) =>
+          [person?.username, "everyone", role].filter(Boolean).includes(n));
       }
       s.send(JSON.stringify({ ...event, room: r.id, notify }));
     }
