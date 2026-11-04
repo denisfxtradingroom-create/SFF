@@ -11,6 +11,7 @@ let active = null,
   stream = null,
   video = null,
   ice = [],
+  iceMode = "default",
   deaf = false,
   mic = "",
   cam = "",
@@ -42,9 +43,12 @@ function mount() {
   const failed = states.some((p) =>
     p.pc.connectionState === "failed" || p.pc.iceConnectionState === "failed");
   const connectionLabel = !active ? "Uključi mikrofon da se pridružiš razgovoru." :
-    failed ? "Medijska veza nije uspela. Proveri mrežu ili TURN server." :
+    failed ? (iceMode === "stun_only"
+      ? "Medijska veza nije uspela. TURN relay još nije povezan."
+      : "Medijska veza nije uspela. Proveri TURN ili mrežne postavke.") :
     !states.length ? "Čekamo drugog učesnika…" :
-    connected ? "Zvuk i video su povezani." : "Povezivanje zvuka i videa…";
+    connected ? "Zvuk i video su povezani." :
+    "Povezivanje zvuka i videa…" + (iceMode === "turn" ? " (TURN relay spreman)" : "");
   info.innerHTML = '<p class="eyebrow">SIGNAL / GLASOVNI KANAL</p><h2>' +
     (active ? "U razgovoru" : "Glasovna soba") +
     '</h2><p class="muted" data-voice-status>' + connectionLabel + '</p>';
@@ -238,6 +242,7 @@ export async function voiceEvent(e) {
   if (!active) return true;
   if (e.type === "peers") {
     ice = Array.isArray(e.ice) ? e.ice : [];
+    iceMode = typeof e.iceMode === "string" ? e.iceMode : "default";
     for (const other of e.peers) {
       const { pc } = connection(other.peer, other.uid, true);
       await pc.setLocalDescription(await pc.createOffer());
@@ -282,6 +287,7 @@ export function voiceLeave() {
   peers.clear();
   pending.clear();
   signalQueues.clear();
+  iceMode = "default";
   stream?.getTracks().forEach((t) => t.stop());
   video?.stop();
   video = stream = null;
