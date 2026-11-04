@@ -147,6 +147,17 @@ let data,
   typingTimer,
   retry = 0;
 const lastReadSent = new Map();
+window.SFFNotificationIdentity = () => data?.me
+  ? String(data.me.id) + ":" + String(data.me.username).toLowerCase()
+  : null;
+let stateRefreshTimer = null;
+function queueStateRefresh() {
+  if (stateRefreshTimer) return;
+  stateRefreshTimer = setTimeout(() => {
+    stateRefreshTimer = null;
+    if (alive) sync().catch((error) => note(error.message));
+  }, 180);
+}
 const current = () => data?.rooms.find((r) => r.id === room),
   community = () => data?.spaces.find((s) => s.id === space);
 const signature = '<small class="signature">Napravio: Denis.D98</small>';
@@ -597,7 +608,7 @@ function live() {
         if (activeVoiceRoom()) voiceLeave();
         return note(v.error);
       }
-      if (v.type === "state") return await sync();
+      if (v.type === "state") return queueStateRefresh();
       if (v.type === "typing" && v.room === room && v.uid !== data.me.id) {
         context(v.name + " piše…");
         clearTimeout(typingTimer);
@@ -606,7 +617,7 @@ function live() {
       if (v.type === "message" || v.type === "changed") {
         // Notifications are delivered once by social-notifications.js.
         if (v.room === room) await historyLoad();
-        else await sync();
+        else queueStateRefresh();
       }
     } catch (e) {
       note(e.message);
