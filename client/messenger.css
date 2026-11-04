@@ -1,0 +1,80 @@
+/* Private conversations only: sender at right, friend at left. */
+.sffDmChat .feed .msg {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+  margin: 10px 0;
+}
+.sffDmChat .feed .msg.sffOwn { justify-content: flex-end; }
+.sffDmChat .feed .msg.sffOther { justify-content: flex-start; }
+.sffDmChat .feed .msg .bubble {
+  flex: 0 1 auto;
+  max-width: min(76%, 560px);
+  min-width: 0;
+  border: 1px solid rgba(224, 164, 182, .18);
+  background: rgba(42, 34, 46, .97);
+  padding: 11px 14px;
+  border-radius: 17px 17px 17px 5px;
+  overflow-wrap: anywhere;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, .10);
+}
+.sffDmChat .feed .msg.sffOwn .bubble {
+  background: linear-gradient(135deg, #8a334b, #71304f);
+  color: #fff6fa;
+  border-color: rgba(255, 185, 207, .26);
+  border-radius: 17px 17px 5px 17px;
+}
+.sffDmChat .feed .msg.sffOwn > .avatar { display: none; }
+.sffDmChat .feed .msg .author { font-weight: 700; }
+.sffDmChat .feed .msg.sffOwn .meta { color: #f5c8d7; }
+.sffDmChat .feed .msg.sffOwn a { color: #fff1f5; }
+.sffDmChat .feed .msg .body { max-width: 100%; overflow-wrap: anywhere; }
+.sffDmChat .feed .msg .sffSeen {
+  display: block;
+  color: #e9d0dc;
+  text-align: right;
+  margin-top: 5px;
+  font-size: 11px;
+}
+@media (max-width: 760px) {
+  .sffDmChat .feed .msg .bubble { max-width: 84%; }
+  .sffDmChat .feed .msg { gap: 7px; }
+  .sffDmChat .feed .msg .bubble { padding: 9px 12px; }
+}
+/* DM audio/video calls: floating modal only, never reflows the message list. */
+.sffCallOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  background: rgba(8, 6, 12, .78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.sffCallPanel {
+  width: min(640px, 100%);
+  max-height: 90dvh;
+  overflow: auto;
+  border-radius: 19px;
+  border: 1px solid #86536b;
+  background: linear-gradient(145deg, #30212f, #17131c);
+  box-shadow: 0 25px 80px rgba(0,0,0,.65);
+  color: #fff;
+  padding: 22px;
+  text-align: center;
+}
+.sffCallPanel h2 { margin: 10px 0 6px; }
+.sffCallPanel p { color: #ebc8d6; }
+.sffCallPanel .sffCallActions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 15px 0; }
+.sffCallPanel button { min-height: 42px; }
+.sffCallPanel .sffCallAnswer { background: #1b754d; border-color: #46ba81; color: #fff; }
+.sffCallPanel .sffCallEnd { background: #8f3044; border-color: #e37386; color: #fff; }
+.sffCallPanel #voice { margin-top: 12px; }
+.sffCallPanel #voice .grid video { max-width: 100%; }
+.sffDmChat .sffCallButtons { display: flex; gap: 7px; }
+.sffDmChat .sffCallButtons button { white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) {
+  .sffCallOverlay { animation: none; }
+}
