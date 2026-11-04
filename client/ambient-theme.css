@@ -1,0 +1,284 @@
+/*
+  SFF 0.8.1 — Tiha ambijentalna tema
+  Vizuelni sloj preko postojećeg GUI-ja: ne menja dimenzije funkcionalnih
+  komponenti, događaje, podatke, fokus, niti tok razgovora.
+  Paleta je izvedena iz postojeće .gate prijavne stranice.
+*/
+:root {
+  --sff-ambient-base: #121017;
+  --sff-ambient-wine: #562334;
+  --sff-ambient-rose: #d34a64;
+  --sff-ambient-border: rgba(229, 143, 167, .15);
+}
+
+/* Zajedničko pozadinsko osvetljenje nakon prijavljivanja. */
+.shell {
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse 57% 68% at 80% -12%, rgba(166, 37, 69, .12), transparent 75%),
+    linear-gradient(145deg, #171019, #100f14 64%, #171119);
+}
+.shell .rail {
+  background:
+    linear-gradient(180deg, rgba(95, 29, 49, .19), transparent 49%),
+    #110e15;
+  border-right-color: var(--sff-ambient-border);
+}
+.shell .side {
+  background:
+    radial-gradient(ellipse 100% 50% at 10% 0%, rgba(141, 43, 71, .10), transparent 85%),
+    linear-gradient(180deg, #1b171f, #18151c 84%);
+  border-right-color: var(--sff-ambient-border);
+}
+.shell .members {
+  background:
+    radial-gradient(ellipse 100% 40% at 100% 0%, rgba(124, 44, 70, .10), transparent 85%),
+    linear-gradient(180deg, #1c171f, #17141b);
+  border-left-color: var(--sff-ambient-border);
+}
+
+/* Suptilni SFF natpis u pozadini. Tekst, input i poruke ostaju iznad njega. */
+.shell .chat {
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse 63% 55% at 84% 8%, rgba(132, 36, 66, .18), transparent 75%),
+    radial-gradient(ellipse 48% 43% at -12% 98%, rgba(119, 39, 69, .15), transparent 75%),
+    linear-gradient(153deg, #171319, #121016 66%, #1c121d);
+}
+.shell .chat::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(139deg, transparent 23%, rgba(232, 76, 111, .028) 23.1%, rgba(232, 76, 111, .028) 31%, transparent 31.1%),
+    linear-gradient(139deg, transparent 62%, rgba(232, 76, 111, .021) 62.1%, rgba(232, 76, 111, .021) 69%, transparent 69.1%);
+}
+.shell .chat::after {
+  content: "SFF";
+  position: absolute;
+  right: clamp(8px, 5vw, 76px);
+  top: 31%;
+  z-index: 0;
+  pointer-events: none;
+  font: 900 clamp(124px, 18vw, 315px)/1 "Segoe UI", Arial, sans-serif;
+  letter-spacing: -.09em;
+  color: rgba(233, 102, 130, .037);
+  transform: rotate(-13deg);
+  user-select: none;
+}
+.shell .chat > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Isti GUI, jasnija hijerarhija i diskretniji paneli. */
+.shell .bar {
+  background: linear-gradient(110deg, rgba(40, 28, 39, .90), rgba(29, 22, 31, .88));
+  border-bottom-color: var(--sff-ambient-border);
+}
+.shell .bar .eyebrow,
+.shell .side > .eyebrow,
+.shell .members > .eyebrow {
+  color: #ea9eaf;
+}
+.shell .side > h2 {
+  font-size: 23px;
+  line-height: 1.2;
+  letter-spacing: -.025em;
+}
+.shell .side .row {
+  gap: 7px;
+}
+.shell .side .row button {
+  border-color: rgba(186, 108, 130, .19);
+}
+.shell .side .list {
+  gap: 4px;
+  border-top: 1px solid rgba(227, 151, 171, .09);
+  padding-top: 12px;
+}
+.shell .side .list .item {
+  border-radius: 11px;
+  padding: 10px 11px;
+  transition: background .14s ease, border-color .14s ease;
+}
+.shell .side .list .item:hover,
+.shell .side footer .item:hover {
+  background: rgba(151, 63, 86, .12);
+  border-color: rgba(223, 115, 145, .20);
+}
+.shell .side .list .item.active {
+  background: linear-gradient(115deg, rgba(114, 45, 67, .66), rgba(68, 33, 49, .5)) !important;
+  border-color: rgba(242, 133, 159, .35) !important;
+}
+.shell .side footer {
+  border-top-color: rgba(225, 131, 155, .17);
+}
+.shell .members .person {
+  margin: 5px 0;
+  padding: 10px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 150, 173, .08);
+  background: rgba(81, 49, 69, .10);
+}
+.shell .members .person:hover {
+  background: rgba(111, 54, 78, .17);
+  border-color: rgba(226, 150, 173, .20);
+}
+.shell .chat .feed {
+  background: transparent;
+}
+.shell .chat .empty,
+.shell .chat .loading {
+  color: #d8c1cc;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, .18);
+}
+.shell .chat .composer {
+  background: rgba(36, 29, 39, .94);
+  border-color: rgba(224, 135, 159, .30);
+  box-shadow: 0 10px 33px rgba(0, 0, 0, .14);
+}
+.shell .chat .composer input {
+  color: #f7eaf0;
+}
+.shell .chat .composer input::placeholder {
+  color: #b7a0ac;
+}
+
+/* Mobilna navigacija: Početna prva, ostali postojeći odeljci sačuvani. */
+.shell .mobileNav {
+  z-index: 30;
+  background: rgba(26, 21, 30, .98);
+  border-top-color: rgba(241, 146, 172, .19);
+  box-shadow: 0 -10px 30px rgba(9, 7, 12, .25);
+}
+.shell .mobileNav button {
+  min-width: 0;
+  border-radius: 11px;
+  overflow-wrap: normal;
+}
+.shell .mobileNav button.active {
+  background: linear-gradient(145deg, #723248, #4c293a) !important;
+}
+
+/* Početna: isti paneli i objave, ali bogatija pozadina poput prijavnog ekrana. */
+#sffWallScreen {
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse 65% 49% at 95% 4%, rgba(155, 45, 76, .21), transparent 73%),
+    radial-gradient(ellipse 50% 55% at 0% 95%, rgba(119, 35, 67, .17), transparent 75%),
+    linear-gradient(155deg, #181019, #100e15 62%, #18101a);
+}
+#sffWallScreen::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(150deg, transparent 18%, rgba(244, 94, 122, .025) 18.1%, rgba(244, 94, 122, .025) 26%, transparent 26.1%),
+    linear-gradient(150deg, transparent 77%, rgba(244, 94, 122, .022) 77.1%, rgba(244, 94, 122, .022) 84%, transparent 84.1%);
+}
+#sffWallScreen::after {
+  content: "SFF";
+  position: fixed;
+  top: 23%;
+  right: 3%;
+  z-index: 0;
+  pointer-events: none;
+  font: 900 clamp(160px, 23vw, 340px)/1 "Segoe UI", Arial, sans-serif;
+  letter-spacing: -.09em;
+  color: rgba(231, 103, 134, .038);
+  transform: rotate(-12deg);
+  user-select: none;
+}
+#sffWallScreen .sffWallLayout {
+  position: relative;
+  z-index: 1;
+}
+#sffWallScreen .sffWallTop {
+  background: linear-gradient(90deg, rgba(44, 26, 39, .98), rgba(25, 20, 30, .98));
+  border-bottom-color: rgba(237, 130, 161, .25);
+}
+#sffWallScreen .sffWallAside,
+#sffWallScreen .sffWallComposer,
+#sffWallScreen .sffWallPost,
+#sffWallScreen .sffWallPrivacy,
+#sffWallScreen .sffWallEmpty {
+  background: rgba(30, 24, 34, .94);
+  border-color: rgba(232, 150, 174, .22);
+  box-shadow: 0 13px 33px rgba(0, 0, 0, .16);
+}
+#sffWallScreen .sffWallAside {
+  background: linear-gradient(180deg, rgba(44, 27, 42, .95), rgba(29, 24, 34, .96));
+}
+#sffWallScreen .sffWallRule {
+  background: rgba(72, 35, 52, .25);
+  border-color: rgba(215, 123, 148, .20);
+}
+#sffWallScreen .sffWallHeading h1 {
+  color: #fff5f7;
+  text-shadow: 0 4px 30px rgba(239, 83, 118, .10);
+}
+#sffWallScreen .sffWallPostActions {
+  background: rgba(63, 34, 49, .10);
+}
+#sffWallScreen .sffWallPostActions button:hover {
+  background: rgba(130, 52, 81, .18) !important;
+}
+#sffWallScreen .sffWallEmpty {
+  background: linear-gradient(135deg, rgba(59, 33, 49, .94), rgba(29, 24, 34, .94));
+}
+
+/* Profil i pomoćni prozori pripadaju istoj paleti, bez promena forme. */
+.sffProfileDialog,
+.sffSocialDialog,
+#sffWallShare {
+  border-color: rgba(232, 148, 171, .31) !important;
+  box-shadow: 0 23px 60px rgba(0, 0, 0, .47);
+}
+.sffProfileDialog .sffV5Cover {
+  background: linear-gradient(135deg, #8c344e, #502239 57%, #201923);
+}
+
+/* Efekti ostaju lagani za Android i starije grafičke kartice. */
+@media (max-width: 760px) {
+  .shell .chat::after {
+    top: 38%;
+    right: 6%;
+    font-size: clamp(90px, 29vw, 150px);
+    color: rgba(233, 102, 130, .038);
+  }
+  .shell .side {
+    background: linear-gradient(155deg, #211720, #16141b 75%);
+  }
+  .shell .members {
+    background: linear-gradient(155deg, #21171f, #141118 75%);
+  }
+  .shell .side .list {
+    padding-top: 9px;
+  }
+  .shell .mobileNav {
+    gap: 2px;
+    padding-inline: 4px;
+  }
+  .shell .mobileNav button {
+    padding-inline: 2px;
+    font-size: 11px;
+    line-height: 1.2;
+  }
+  #sffWallScreen::after {
+    top: 28%;
+    right: 7%;
+    font-size: 34vw;
+    color: rgba(231, 103, 134, .033);
+  }
+}
+@media (max-width: 390px) {
+  .shell .mobileNav button { font-size: 10px; letter-spacing: -.025em; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell .side .list .item { transition: none; }
+}
