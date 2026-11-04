@@ -512,13 +512,20 @@ async function action(a, b, u, res, req) {
   const notify = (event) =>
     push({ ...event, room: r.id }, (s) => roomFor(r.id, s.uid));
   if (a === "read") {
-    await run(
-      "insert into reads values(?,?,?) on conflict(room,uid) do update set last=max(last,excluded.last)",
-      r.id,
-      u,
-      Number(b.last) || 0,
-    );
-    return {};
+    const latest = await one("select max(id) last from messages where room=?", r.id);
+    const requested = Number(b.last);
+    const through = Number.isSafeInteger(requested) && requested > 0
+      ? Math.min(requested, Number(latest?.last || 0))
+      : 0;
+    const previous = await one("select last from reads where room=? and uid=?", r.id, u);
+    if (through > Number(previous?.last || 0)) {
+      await run(
+        "insert into reads values(?,?,?) on conflict(room,uid) do update set last=max(last,excluded.last)",
+        r.id, u, through,
+      );
+      await push({ type: "state" }, (s) => s.uid === u);
+    }
+    return { last: Math.max(through, Number(previous?.last || 0)) };
   }
   if (a === "history") {
     const rows = (await all(
