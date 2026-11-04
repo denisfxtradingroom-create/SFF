@@ -104,6 +104,16 @@ const extra = await extras({
   sockets,
 });
 const wall = await socialWall({db,one,all,run,insert,demand,blocked,limit,push});
+// Show only aggregate counts: no usernames, addresses, passwords or tokens.
+// Render startup diagnostics establish whether a reset affected the database
+// to which the LIVE app is actually connected.
+try {
+  const current = await one("select count(*) as total from users");
+  console.error("[SFF storage check] database=" + (db.remote ? "turso" : "local") +
+    " user_count=" + Number(current?.total || 0));
+} catch (error) {
+  console.error("[SFF storage check] unable to read account count:", error.message);
+}
 function auth(req) {
   return (req.headers.cookie || "").match(/(?:^|; *)sff=([a-f0-9]{64})(?:;|$)/)?.[1];
 }
