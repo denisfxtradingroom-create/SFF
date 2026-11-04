@@ -2,6 +2,7 @@ import { rolePolicy } from "./roles.mjs";
 import { extras } from "./extras.mjs";
 import { socialWall } from "./wall.mjs";
 import { openDatabase } from "./db.mjs";
+import { resetSffWhenRequested } from "./account-reset.mjs";
 import http from "node:http";
 import { randomBytes, createHash, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
@@ -104,6 +105,8 @@ const extra = await extras({
   sockets,
 });
 const wall = await socialWall({db,one,all,run,insert,demand,blocked,limit,push});
+// Runs only when the operator deliberately sets the one-time reset switch.
+await resetSffWhenRequested(db);
 // Show only aggregate counts: no usernames, addresses, passwords or tokens.
 // Render startup diagnostics establish whether a reset affected the database
 // to which the LIVE app is actually connected.
