@@ -161,8 +161,8 @@ export async function extras({
         email,
       );
       if (who) {
-        limit("send:" + who.id, 3);
         try {
+          limit("send:" + who.id, 3);
           await sendUsernameReminder(who.email, who.username);
         } catch (error) {
           // Never reveal whether this address belongs to a user by
@@ -182,7 +182,20 @@ export async function extras({
           ? await one("select id,email from users where email=?", str(b.email, 160).toLowerCase())
           : await one("select id,email from users where id=?", u || 0);
 
-      if (a === "forgot" || a === "verifySend") {
+      if (a === "forgot") {
+        if (who) {
+          try {
+            limit("send:" + who.id, 3);
+            await sendCode(who.id, who.email, kind);
+          } catch (error) {
+            // Same response for existent/nonexistent addresses, even if
+            // the email provider fails or per-account throttling is hit.
+            console.warn("[SFF recovery] Password reset email delivery failed:", error.message);
+          }
+        }
+        return {};
+      }
+      if (a === "verifySend") {
         if (who) {
           limit("send:" + who.id, 3);
           await sendCode(who.id, who.email, kind);
