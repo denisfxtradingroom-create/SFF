@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
+const brevo = process.env.SFF_TEST_MAIL_PROVIDER === "brevo";
 const dir = mkdtempSync(join(tmpdir(), "sff-mail-")),
   outbox = join(dir, "outbox.json"),
   email = "test@example.test";
@@ -20,8 +21,9 @@ const server = spawn(
       ...process.env,
       SFF_DATA: dir,
       PORT: "0",
-      RESEND_API_KEY: "test",
-      SFF_MAIL_FROM: "test@example.test",
+      RESEND_API_KEY: brevo ? "" : "test",
+      BREVO_API_KEY: brevo ? "test" : "",
+      SFF_MAIL_FROM: "SFF <test@example.test>",
       SFF_REQUIRE_VERIFIED_EMAIL: "1",
       SFF_TEST_OUTBOX: outbox,
     },
@@ -44,7 +46,8 @@ try {
     return r.json();
   }
   const token = () =>
-    JSON.parse(readFileSync(outbox, "utf8")).text.match(/[0-9a-f]{36}/)[0];
+    (JSON.parse(readFileSync(outbox, "utf8")).textContent ||
+      JSON.parse(readFileSync(outbox, "utf8")).text).match(/[0-9a-f]{36}/)[0];
   await call("register", {
     username: "tester",
     email,
