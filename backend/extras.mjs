@@ -1,5 +1,7 @@
 import { randomBytes, createHash, scrypt } from "node:crypto";
 import { promisify } from "node:util";
+import { addMessageMetadata } from "./message-metadata.mjs";
+import { retentionCutoff } from "./retention.mjs";
 const hash = (v) => createHash("sha256").update(v).digest("hex"),
   derive = promisify(scrypt);
 
@@ -141,22 +143,41 @@ export async function extras({
 
   async function detailedPush(r, event) {
     const mentions = event.mentions || [];
-    for (const s of sockets) {
-      if (s.readyState !== 1 || !(await roomFor(r.id, s.uid))) continue;
-      let notify = s.uid !== event.uid;
-      if (notify) {
-        const person = await one("select username,status from users where id=?", s.uid);
-        if (person?.status === "Do Not Disturb") notify = false;
-        const roomAlert = await one("select policy from alerts where uid=? and scope=?", s.uid, "r" + r.id);
-        const spaceAlert = r.space
-          ? await one("select policy from alerts where uid=? and scope=?", s.uid, "s" + r.space)
-          : null;
-        const policy = roomAlert?.policy || spaceAlert?.policy || "all";
-        if (policy === "off") notify = false;
-        if (policy === "mentions") {
-          const role = (await roomFor(r.id, s.uid))?.role?.toLowerCase();
-          notify = mentions.some((n) => [person?.username, "everyone", role].filter(Boolean).includes(n));
-        }
+    const active = [...sockets].filter((s) => s.readyState === 1);
+    if (!active.length) return;
+    // Authorize once per user, not once for every tab / connected device.
+    const users = [...new Set(active.map((s) => s.uid))];
+    const authorized = new Map();
+    for (const uid of users) {
+      const room = await roomFor(r.id, uid);
+      if (room) authorized.set(uid, room);
+    }
+    if (!authorized.size) return;
+    const ids = [...authorized.keys()];
+    const placeholders = ids.map(() => "?").join(",");
+    const spaceScope = r.space ? "s" + r.space : null;
+    // One indexed policy query replaces 2-3 queries per connected recipient.
+    const settings = await all(
+      "select u.id,u.username,u.status," +
+      "(select policy from alerts where uid=u.id and scope=?) roomPolicy," +
+      (spaceScope
+        ? "(select policy from alerts where uid=u.id and scope=?) spacePolicy "
+        : "null spacePolicy ") +
+      "from users u where u.id in (" + placeholders + ")",
+      "r" + r.id, ...(spaceScope ? [spaceScope] : []), ...ids
+    );
+    const byId = new Map(settings.map((row) => [row.id, row]));
+    for (const s of active) {
+      const room = authorized.get(s.uid);
+      if (!room) continue;
+      const person = byId.get(s.uid);
+      let notify = s.uid !== event.uid && person?.status !== "Do Not Disturb";
+      const policy = person?.roomPolicy || person?.spacePolicy || "all";
+      if (policy === "off") notify = false;
+      else if (policy === "mentions") {
+        const role = room.role?.toLowerCase();
+        notify = notify && mentions.some((n) =>
+          [person?.username, "everyone", role].filter(Boolean).includes(n));
       }
       s.send(JSON.stringify({ ...event, room: r.id, notify }));
     }
@@ -441,8 +462,8 @@ export async function extras({
       if (!deleted) return;
       const rows = (
         await all(
-          "select m.id,m.uid,m.body,m.parent,m.time,m.pinned,m.edited,m.file,m.mime,u.name,u.username from messages m join users u on u.id=m.uid where room=? and m.id>? and ((?=0 and not exists(select 1 from thread_posts t where t.msg=m.id)) or m.id=? or exists(select 1 from thread_posts t where t.msg=m.id and t.root=?)) and m.id<? and instr(lower(m.body),lower(?))>0 and m.pinned>=? order by m.id desc limit 50",
-          r.id,
+          "select m.id,m.uid,case when m.time<=? and m.file is not null and trim(coalesce(m.body,''))='' then 'Prilog je uklonjen nakon 7 dana.' else m.body end body,m.parent,m.time,m.pinned,m.edited,case when m.time<=? then null else m.file end file,case when m.time<=? then null else m.mime end mime,u.name,u.username from messages m join users u on u.id=m.uid where room=? and m.id>? and ((?=0 and not exists(select 1 from thread_posts t where t.msg=m.id)) or m.id=? or exists(select 1 from thread_posts t where t.msg=m.id and t.root=?)) and m.id<? and instr(lower(m.body),lower(?))>0 and m.pinned>=? order by m.id desc limit 50",
+          retentionCutoff(), retentionCutoff(), retentionCutoff(), r.id,
           deleted.deleted_through,
           Number(b.thread) || 0,
           Number(b.thread) || 0,
@@ -452,16 +473,7 @@ export async function extras({
           b.pins ? 1 : 0,
         )
       ).reverse();
-      const out = [];
-      for (const m of rows) {
-        const thread = await one("select count(*) n from thread_posts where root=? and msg>?", m.id, deleted.deleted_through);
-        out.push({
-          ...m,
-          threadCount: thread?.n || 0,
-          reactions: await all("select emoji,count(*) n from reactions where msg=? group by emoji", m.id),
-        });
-      }
-      return out;
+      return addMessageMetadata(rows, all, deleted.deleted_through);
     }
 
     if (a === "post") {

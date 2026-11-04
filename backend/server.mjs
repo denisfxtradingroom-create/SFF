@@ -2,6 +2,8 @@ import { rolePolicy } from "./roles.mjs";
 import { extras } from "./extras.mjs";
 import { socialWall } from "./wall.mjs";
 import { openDatabase } from "./db.mjs";
+import { addMessageMetadata } from "./message-metadata.mjs";
+import { initRetention, purgeExpiredContent, retentionCutoff } from "./retention.mjs";
 import { resetSffWhenRequested } from "./account-reset.mjs";
 import http from "node:http";
 import { randomBytes, createHash, scrypt, timingSafeEqual } from "node:crypto";
@@ -77,17 +79,24 @@ function limit(k, n) {
 setInterval(async () => {
   try {
     for (const [k, r] of rates) if (r.end < Date.now()) rates.delete(k);
-    await run("delete from sessions where expires<?", Date.now());
-    for (const s of sockets) if (!(await session(s.token))) s.close();
+    // Never query Turso when no one has a WebSocket connection.
+    if (sockets.size) {
+      for (const s of sockets) if (!(await session(s.token))) s.close();
+    }
   } catch (error) {
     console.error("SFF maintenance:", error);
   }
 }, 60000).unref();
+// Expired session deletion once per six hours instead of 1,440 writes per day.
+setInterval(() => {
+  run("delete from sessions where expires<?", Date.now())
+    .catch((error) => console.error("SFF session prune:", error));
+}, 6 * 60 * 60 * 1000).unref();
 const session = async (t) =>
   t && (await one("select uid from sessions where token=? and expires>?", t, Date.now()))?.uid;
 const push = async (event, filter) => {
   for (const s of sockets) {
-    if ((await filter(s)) && s.readyState === 1) s.send(JSON.stringify(event));
+    if (s.readyState === 1 && (await filter(s))) s.send(JSON.stringify(event));
   }
 };
 const extra = await extras({
@@ -107,6 +116,28 @@ const extra = await extras({
 const wall = await socialWall({db,one,all,run,insert,demand,blocked,limit,push});
 // Runs only when the operator deliberately sets the one-time reset switch.
 await resetSffWhenRequested(db);
+await initRetention(db);
+let retentionRunning = false;
+async function retentionSweep() {
+  if (retentionRunning) return;
+  retentionRunning = true;
+  try {
+    const stats = await purgeExpiredContent(db);
+    if (stats.media || stats.posts) {
+      console.info("[SFF retention] expired_attachments=" + stats.media +
+        " expired_posts=" + stats.posts);
+      if (stats.posts) await push({ type: "wall_changed" }, () => true);
+    }
+  } catch (error) {
+    console.error("[SFF retention] cleanup failed:", error.message);
+  } finally {
+    retentionRunning = false;
+  }
+}
+// The server can be idle on a free Render plan; process old data at startup,
+// then hourly. SQL access also hides expired content between sweeps.
+void retentionSweep();
+setInterval(retentionSweep, 60 * 60 * 1000).unref();
 // Show only aggregate counts: no usernames, addresses, passwords or tokens.
 // Render startup diagnostics establish whether a reset affected the database
 // to which the LIVE app is actually connected.
@@ -133,54 +164,61 @@ async function state(u) {
     u,
     u,
   );
+  // Batch room counters and metadata into one indexed query instead of
+  // fetching last activity, unread count and category separately per room.
+  const roomIds = ids.map((x) => x.id);
+  const markers = roomIds.map(() => "?").join(",");
+  const roomRows = roomIds.length ? await all(
+    "select r.id," +
+    "(select max(m.id) from messages m where m.room=r.id) latest," +
+    "coalesce(d.deleted_through,0) deleted_through," +
+    "(select count(*) from messages m where m.room=r.id and m.uid!=? " +
+    "and m.id>max(coalesce(rd.last,0),coalesce(d.deleted_through,0))) unread," +
+    "coalesce(meta.category,'') category " +
+    "from rooms r " +
+    "left join reads rd on rd.room=r.id and rd.uid=? " +
+    "left join chat_deletions d on d.room=r.id and d.uid=? and r.space is null " +
+    "left join room_meta meta on meta.room=r.id " +
+    "where r.id in (" + markers + ")",
+    u, u, u, ...roomIds
+  ) : [];
+  const roomInfo = new Map(roomRows.map((row) => [row.id, row]));
+  const dmRows = roomIds.length ? await all(
+    "select p.room,group_concat(u.name, ', ') names " +
+    "from participants p join users u on u.id=p.uid " +
+    "join rooms r on r.id=p.room and r.kind='dm' " +
+    "where p.uid!=? and p.room in (" + markers + ") group by p.room",
+    u, ...roomIds
+  ) : [];
+  const dmNames = new Map(dmRows.map((row) => [row.room, row.names]));
   const rooms = [];
   for (const x of ids) {
     const r = await roomFor(x.id, u);
     if (!r) continue;
-    const latest = await one("select max(id) latest from messages where room=?", r.id);
-    const deleted = !r.space
-      ? await one("select deleted_through from chat_deletions where room=? and uid=?", r.id, u)
-      : null;
-    if (deleted && (latest?.latest || 0) <= deleted.deleted_through) continue;
-    let roomName = r.name;
-    if (r.kind === "dm") {
-      const names = await all(
-        "select name from users join participants on users.id=uid where room=? and uid!=?",
-        r.id,
-        u,
-      );
-      roomName = names.map((x) => x.name).join(", ");
-    }
-    const unread = await one(
-      "select count(*) n from messages where room=? and uid!=? and id>max(coalesce((select last from reads where room=? and uid=?),0),?)",
-      r.id,
-      u,
-      r.id,
-      u,
-      deleted?.deleted_through || 0,
-    );
-    const meta = await one("select category from room_meta where room=?", r.id);
+    const info = roomInfo.get(r.id);
+    if (!info) continue;
+    if (!r.space && Number(info.deleted_through) &&
+        Number(info.latest || 0) <= Number(info.deleted_through)) continue;
     rooms.push({
       ...r,
-      lastActivity: latest?.latest || 0,
-      name: roomName,
-      unread: unread?.n || 0,
-      category: meta?.category || "",
+      lastActivity: info.latest || 0,
+      name: r.kind === "dm" ? dmNames.get(r.id) || "" : r.name,
+      unread: info.unread || 0,
+      category: info.category || "",
     });
   }
 
-  const onlineIds = [];
-  for (const id of new Set([...sockets].map((s) => s.uid))) {
-    const user = await one("select id from users where id=? and status!='Invisible'", id);
-    const friend = await one(
-      "select 1 from friends where accepted=1 and ((sender=? and target=?) or (sender=? and target=?))",
-      u,
-      id,
-      id,
-      u,
-    );
-    if (user && friend) onlineIds.push(id);
-  }
+  const activeUserIds = [...new Set([...sockets]
+    .filter((s) => s.readyState === 1).map((s) => s.uid))];
+  const onlineRows = activeUserIds.length ? await all(
+    "select u.id from users u where u.id in (" +
+    activeUserIds.map(() => "?").join(",") + ") " +
+    "and u.status!='Invisible' and exists (" +
+    "select 1 from friends f where f.accepted=1 " +
+    "and ((f.sender=? and f.target=u.id) or (f.target=? and f.sender=u.id)))",
+    ...activeUserIds, u, u
+  ) : [];
+  const onlineIds = onlineRows.map((row) => row.id);
 
   return {
     ...(await extra.options(u)),
@@ -568,8 +606,8 @@ async function action(a, b, u, res, req) {
   }
   if (a === "history") {
     const rows = (await all(
-      "select m.id,m.uid,m.body,m.parent,m.time,m.pinned,m.edited,m.file,m.mime,u.name,u.username from messages m join users u on u.id=m.uid where room=? and ((?=0 and not exists(select 1 from thread_posts t where t.msg=m.id)) or m.id=? or exists(select 1 from thread_posts t where t.msg=m.id and t.root=?)) and m.id<? and instr(lower(m.body),lower(?))>0 and m.pinned>=? order by m.id desc limit 50",
-      r.id,
+      "select m.id,m.uid,case when m.time<=? and m.file is not null and trim(coalesce(m.body,''))='' then 'Prilog je uklonjen nakon 7 dana.' else m.body end body,m.parent,m.time,m.pinned,m.edited,case when m.time<=? then null else m.file end file,case when m.time<=? then null else m.mime end mime,u.name,u.username from messages m join users u on u.id=m.uid where room=? and ((?=0 and not exists(select 1 from thread_posts t where t.msg=m.id)) or m.id=? or exists(select 1 from thread_posts t where t.msg=m.id and t.root=?)) and m.id<? and instr(lower(m.body),lower(?))>0 and m.pinned>=? order by m.id desc limit 50",
+      retentionCutoff(), retentionCutoff(), retentionCutoff(), r.id,
       Number(b.thread) || 0,
       Number(b.thread) || 0,
       Number(b.thread) || 0,
@@ -577,19 +615,7 @@ async function action(a, b, u, res, req) {
       str(b.search || "", 120, 0),
       b.pins ? 1 : 0,
     )).reverse();
-    const out = [];
-    for (const m of rows) {
-      const thread = await one("select count(*) n from thread_posts where root=?", m.id);
-      out.push({
-        ...m,
-        threadCount: thread?.n || 0,
-        reactions: await all(
-          "select emoji,count(*) n from reactions where msg=? group by emoji",
-          m.id,
-        ),
-      });
-    }
-    return out;
+    return addMessageMetadata(rows, all);
   }
   if (a === "typing") {
     const typer = await one("select name from users where id=?", u);
@@ -794,8 +820,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (path.startsWith("/media/")) {
       const id = Number(path.slice(7)),
-        m = await one("select room,file,mime from messages where id=?", id);
-      demand(u && m?.file && (await roomFor(m.room, u)));
+        m = await one("select room,file,mime,time from messages where id=?", id);
+      demand(u && m?.file && m.time > retentionCutoff() && (await roomFor(m.room, u)));
       res.setHeader("Content-Type", m.mime);
       res.setHeader(
         "Content-Disposition",
