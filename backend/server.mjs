@@ -943,7 +943,14 @@ server.on("upgrade", async (req, socket, head) => {
             JSON.stringify({
               type: "peers",
               peers: peers.map((p) => ({ peer: p.peer, uid: p.uid })),
-              ice: JSON.parse(process.env.SFF_ICE || "[]"),
+              ice: (() => {
+                const configured = JSON.parse(process.env.SFF_ICE || "[]");
+                // Free public STUN improves private calls across common NATs.
+                // Keep the existing voice-channel configuration unchanged.
+                return allowedDmCall && !configured.length
+                  ? [{urls:"stun:stun.l.google.com:19302"}]
+                  : configured;
+              })(),
             }),
           );
         } else if (b.type === "signal") {
