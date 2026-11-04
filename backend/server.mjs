@@ -158,6 +158,51 @@ try {
 } catch (error) {
   console.error("[SFF storage check] unable to read account count:", error.message);
 }
+// Explicit opt-in diagnostic. Read-only aggregate queries, one time per
+// server start; no message bodies, identifiers, passwords or device tokens logged.
+if (process.env.SFF_DB_AUDIT_ON_STARTUP === "1") {
+  try {
+    const stats = await one(
+      "select " +
+      "(select count(*) from messages) message_rows," +
+      "(select count(*) from users) user_rows," +
+      "(select count(*) from wall_posts) post_rows," +
+      "(select count(*) from wall_comments) comment_rows," +
+      "(select count(*) from sff_push_devices) push_device_rows," +
+      "(select count(*) from messages where bytes is not null) attachment_rows," +
+      "(select coalesce(sum(length(bytes)),0) from messages) attachment_bytes," +
+      "(select coalesce(sum(length(image_bytes)),0) from wall_posts) wall_image_bytes"
+    );
+    console.info("[SFF DB AUDIT] " +
+      "message_rows=" + Number(stats.message_rows) +
+      " user_rows=" + Number(stats.user_rows) +
+      " post_rows=" + Number(stats.post_rows) +
+      " comment_rows=" + Number(stats.comment_rows) +
+      " push_device_rows=" + Number(stats.push_device_rows) +
+      " attachment_rows=" + Number(stats.attachment_rows) +
+      " attachment_bytes=" + Number(stats.attachment_bytes) +
+      " wall_image_bytes=" + Number(stats.wall_image_bytes));
+    try {
+      const pages = await one("pragma page_count");
+      const size = await one("pragma page_size");
+      const pageCount = Number(pages?.page_count);
+      const pageSize = Number(size?.page_size);
+      if (Number.isSafeInteger(pageCount) && Number.isSafeInteger(pageSize) &&
+          pageCount >= 0 && pageSize > 0 &&
+          Number.isSafeInteger(pageCount * pageSize)) {
+        console.info("[SFF DB AUDIT] sqlite_logical_bytes=" +
+          (pageCount * pageSize) + " page_count=" + pageCount +
+          " page_size=" + pageSize);
+      } else {
+        console.info("[SFF DB AUDIT] sqlite_logical_bytes=unavailable");
+      }
+    } catch {
+      console.info("[SFF DB AUDIT] sqlite_logical_bytes=unavailable (Turso PRAGMA unsupported)");
+    }
+  } catch (error) {
+    console.error("[SFF DB AUDIT] failed:", error.message);
+  }
+}
 function auth(req) {
   return (req.headers.cookie || "").match(/(?:^|; *)sff=([a-f0-9]{64})(?:;|$)/)?.[1];
 }
