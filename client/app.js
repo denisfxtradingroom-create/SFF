@@ -344,6 +344,11 @@ onpopstate = (e) => {
   if (dlg.open) dlg.close();
   if (data) navigate(e.state?.page || "spaces", false);
 };
+// The authored layout HTML is tracked independently of the live DOM.
+// Enhancers may add unread badges or presence dots without forcing a repaint.
+const authoredShellParts = new Map();
+const shellPartSelectors = [".rail", ".side", ".members", ".mobileNav", ".chat .bar"];
+const authoredFeedNodes = new WeakMap();
 async function sync() {
   const n = ++seq,
     next = await api("state");
@@ -483,7 +488,8 @@ function render() {
         btn("pins", pins ? "Sve poruke" : "Igle") +
         btn("alerts", "Zvono") +
         (r.kind === "dm"
-          ? btn("callAudio", "☎ Poziv") + btn("callVideo", "▣ Video")
+          ? btn("callAudio", "☎ Poziv") + btn("callVideo", "▣ Video") +
+            btn("callFree", "↗ Rezervni poziv")
           : "") +
         (sp && sp.role !== "Member" ? btn("category", "Kategorija") : "")
       : "") +
@@ -524,13 +530,22 @@ function render() {
     scratch.innerHTML = nextMarkup;
     const nextShell = scratch.querySelector(".shell");
     previousShell.dataset.page = page;
-    for (const selector of [".rail", ".side", ".members", ".mobileNav", ".chat .bar"]) {
+    for (const selector of shellPartSelectors) {
       const oldPart = previousShell.querySelector(selector);
       const newPart = nextShell.querySelector(selector);
-      if (oldPart && newPart && oldPart.outerHTML !== newPart.outerHTML)
+      const canonical = newPart?.outerHTML || "";
+      // Do NOT compare the modified live DOM with raw new markup.
+      if (oldPart && newPart && authoredShellParts.get(selector) !== canonical)
         oldPart.replaceWith(newPart);
+      authoredShellParts.set(selector, canonical);
     }
-  } else root.innerHTML = nextMarkup;
+  } else {
+    root.innerHTML = nextMarkup;
+    authoredShellParts.clear();
+    const shell = root.querySelector(".shell");
+    for (const selector of shellPartSelectors)
+      authoredShellParts.set(selector, shell?.querySelector(selector)?.outerHTML || "");
+  }
   const liveShell = root.querySelector(".shell");
   liveShell.dataset.activeRoom = String(room ?? "");
   liveShell.dataset.activeKind = String(r?.kind || "");
@@ -672,20 +687,38 @@ function drawFeed(bottom = true) {
               : "Počni razgovor",
           pins || search ? "" : "Prva poruka može biti tvoja.",
         ));
-  // Keep unchanged message elements, especially their images and media players.
-  if (feed.innerHTML !== markup) {
-    const original = new Map([...feed.querySelectorAll(":scope > article.msg[data-sff-msg-id]")]
-      .map((node) => [node.dataset.sffMsgId, node]));
-    const template = document.createElement("template");
-    template.innerHTML = markup;
-    const updated = [...template.content.childNodes].map((node) => {
-      if (node.nodeType !== 1 || !node.matches("article.msg[data-sff-msg-id]")) return node;
-      const same = original.get(node.dataset.sffMsgId);
-      return same && same.outerHTML === node.outerHTML ? same : node;
-    });
-    feed.replaceChildren(...updated);
+  if (!list.length && feed.innerHTML === markup) return;
+  // Only replace nodes whose SERVER DATA changed. Other scripts add playback,
+  // avatar dots and badges, so comparing their mutated outerHTML is incorrect.
+  const wasNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 88;
+  const original = new Map([...feed.querySelectorAll(":scope > article.msg[data-sff-msg-id]")]
+    .map((node) => [node.dataset.sffMsgId, node]));
+  const template = document.createElement("template");
+  template.innerHTML = markup;
+  const updated = [...template.content.childNodes].map((node) => {
+    if (node.nodeType !== 1 || !node.matches("article.msg[data-sff-msg-id]")) return node;
+    const canonical = node.outerHTML;
+    const existing = original.get(node.dataset.sffMsgId);
+    if (existing && authoredFeedNodes.get(existing) === canonical) return existing;
+    authoredFeedNodes.set(node, canonical);
+    return node;
+  });
+  // Insert only new/changed elements. replaceChildren() reattaches ALL existing
+  // media elements, which pauses video and creates a visible blink on Android.
+  let cursor = feed.firstChild;
+  for (const node of updated) {
+    if (cursor === node) {
+      cursor = cursor.nextSibling;
+    } else {
+      feed.insertBefore(node, cursor);
+    }
   }
-  if (bottom) feed.scrollTop = feed.scrollHeight;
+  while (cursor) {
+    const following = cursor.nextSibling;
+    cursor.remove();
+    cursor = following;
+  }
+  if (bottom && wasNearBottom) feed.scrollTop = feed.scrollHeight;
 }
 function updateSeen() {
   const badge = document.querySelector(".sffDmChat .sffSeen");
@@ -1049,6 +1082,26 @@ async function act(a, id) {
   if (a.startsWith("voice-")) {
     if (a === "voice-leave" && dmCall) return endDmCall(true);
     return voiceAction(a.slice(6), dmCall?.room || room);
+  }
+  if (a === "callFree") {
+    // Alternative if direct WebRTC cannot connect through restrictive networks.
+    // The invite is a normal private chat message; no paid TURN or database polling.
+    if (current()?.kind !== "dm") return;
+    const random = crypto.getRandomValues(new Uint8Array(16));
+    const slug = Array.from(random, b => b.toString(16).padStart(2, "0")).join("");
+    const link = "https://meet.jit.si/SFF-" + slug;
+    await api("post", {
+      room,
+      body: "Poziv preko besplatnog Jitsi servisa: " + link
+    });
+    modal("Rezervni audio/video poziv",
+      "<p>Link je poslat u ovaj privatni razgovor. Oboje otvorite isti link u Chrome/Edge pregledaču.</p>" +
+      '<p><a href="' + link + '" target="_blank" rel="noopener noreferrer">' +
+        esc(link) + "</a></p>" +
+      "<p>Domaćin mora besplatno da se prijavi na Jitsi. Poziv se odvija preko spoljnog servisa, " +
+      "ne preko SFF servera. Ovu opciju koristi samo ako ugrađeni poziv ne radi.</p>");
+    if (socket?.readyState !== 1) await historyLoad();
+    return;
   }
   if (a === "callAudio" || a === "callVideo") {
     if (current()?.kind !== "dm" || dmCall) return;

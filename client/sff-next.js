@@ -34,9 +34,13 @@
     Online: "Na mreži", Idle: "Odsutan",
     "Do Not Disturb": "Ne uznemiravaj", Offline: "Van mreže"
   })[p.displayStatus] || p.displayStatus || "Van mreže";
+  // Reuse cached images until this user actually changes them.
+  const photoRevisions = new Map();
   const photo = (p, slot) =>
     p[slot] ? '<img alt="' + (slot === "avatar" ? "Profilna slika" : "Naslovna slika") +
-      '" src="/art/user/' + Number(p.id) + '/' + slot + '?v=' + Date.now() + '">' : "";
+      '" src="/art/user/' + Number(p.id) + '/' + slot +
+      (photoRevisions.has(p.id + ":" + slot) ? '?v=' + photoRevisions.get(p.id + ":" + slot) : "") +
+      '">' : "";
   let profileId = 0;
 
   async function openProfile(id = 0) {
@@ -57,7 +61,9 @@
           '</div>' +
           '<div class="sffV5Identity">' +
             '<div class="sffV5BigAvatar">' +
-              (photo(p, "avatar") || '<span>' + escape((p.name || "?").slice(0, 1).toUpperCase()) + '</span>') +
+              '<span class="sffV5AvatarClip">' +
+                (photo(p, "avatar") || '<span>' + escape((p.name || "?").slice(0, 1).toUpperCase()) + '</span>') +
+              '</span>' +
               '<span class="sffV5Dot ' + statusClass(p) + '"></span>' +
             '</div>' +
             '<div class="sffV5Name"><h2>' + escape(p.name) + '</h2>' +
@@ -344,20 +350,16 @@
     if (!input?.files?.length) return;
     event.stopImmediatePropagation();
     const file = input.files[0];
-    if (!["image/png", "image/jpeg"].includes(file.type) || file.size > 1024000)
-      return toast("Odaberi PNG ili JPG sliku do 1 MB.");
-    try {
-      const b64 = await new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => resolve(String(r.result).split(",")[1]);
-        r.onerror = reject;
-        r.readAsDataURL(file);
-      });
-      await api("art", { scope: "user", slot: input.dataset.slot, data: b64 });
-      await openProfile(profileId);
-      toast("Slika je sačuvana.");
-    } catch (err) { toast(err.message); }
+    const slot = input.dataset.slot;
     input.value = "";
+    try {
+      const b64 = await window.SFFCropImage(file, slot);
+      if (b64 === null) return;
+      await api("art", { scope: "user", slot, data: b64 });
+      photoRevisions.set(profileId + ":" + slot, Date.now());
+      await openProfile(profileId);
+      toast("Fotografija je sačuvana u izabranom kadru.");
+    } catch (err) { toast(err.message); }
   }, true);
 
   document.addEventListener("submit", async (event) => {

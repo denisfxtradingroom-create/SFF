@@ -49,10 +49,18 @@ function mount() {
     !states.length ? "Čekamo drugog učesnika…" :
     connected ? "Zvuk i video su povezani." :
     "Povezivanje zvuka i videa…" + (iceMode === "turn" ? " (TURN relay spreman)" : "");
-  info.innerHTML = '<p class="eyebrow">SIGNAL / GLASOVNI KANAL</p><h2>' +
-    (active ? "U razgovoru" : "Glasovna soba") +
-    '</h2><p class="muted" data-voice-status>' + connectionLabel + '</p>';
-  controls.innerHTML = active
+  const heading = active ? "U razgovoru" : "Glasovna soba";
+  const currentHeading = info.querySelector("h2");
+  const currentStatus = info.querySelector("[data-voice-status]");
+  if (!currentHeading || !currentStatus) {
+    info.innerHTML = '<p class="eyebrow">SFF / POZIV</p><h2>' +
+      heading + '</h2><p class="muted" data-voice-status></p>';
+  }
+  const label = info.querySelector("h2");
+  const status = info.querySelector("[data-voice-status]");
+  if (label.textContent !== heading) label.textContent = heading;
+  if (status.textContent !== connectionLabel) status.textContent = connectionLabel;
+  const buttonMarkup = active
     ? button("mute", stream?.getAudioTracks()[0]?.enabled
       ? "Isključi mikrofon" : "Uključi mikrofon") +
       button("deafen", deaf ? "Uključi zvuk" : "Isključi zvuk") +
@@ -60,6 +68,7 @@ function mount() {
       (navigator.mediaDevices?.getDisplayMedia ? button("screen", "Podeli ekran") : "") +
       button("devices", "Uređaji") + button("leave", "Napusti")
     : button("join", "Pridruži se");
+  if (controls.innerHTML !== buttonMarkup) controls.innerHTML = buttonMarkup;
   if (!active || !stream) {
     grid.replaceChildren();
     return;

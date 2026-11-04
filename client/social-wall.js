@@ -139,15 +139,58 @@
           '<button type="submit">Pošalji</button></form>'+
       '</section></article>';
   }
+  const postDomState=new WeakMap();
+  const postStaticKey=(p)=>JSON.stringify([p.id,p.uid,p.name,p.username,p.created,p.body,p.image]);
   function draw(){
     const el=document.querySelector("#sffWallFeed");if(!el)return;
-    if(!feed.length){el.innerHTML=
-      '<div class="sffWallEmpty"><span>✦</span><h2>Još nema objava</h2>'+
-      '<p>Ovde će se pojaviti tvoje objave i objave prijatelja. Napiši prvu objavu ili dodaj prijatelje.</p></div>';
+    if(!feed.length){
+      const blank='<div class="sffWallEmpty"><span>✦</span><h2>Još nema objava</h2>'+
+        '<p>Ovde će se pojaviti tvoje objave i objave prijatelja. Napiši prvu objavu ili dodaj prijatelje.</p></div>';
+      if(el.querySelector(".sffWallPost") || !el.querySelector(".sffWallEmpty"))el.innerHTML=blank;
       return;
     }
-    el.innerHTML=feed.map(postCard).join("");
-    for(const id of commentOpen)loadComments(id).catch(showError);
+    const old=new Map([...el.querySelectorAll(":scope > article[data-wall-post]")]
+      .map((node)=>[node.dataset.wallPost,node]));
+    const next=[],loadCommentsFor=[];
+    for(const p of feed){
+      const key=String(p.id),current=old.get(key),stable=postStaticKey(p);
+      const currentState=current&&postDomState.get(current);
+      if(current && currentState?.stable===stable){
+        const counts=current.querySelectorAll(".sffWallCounts span");
+        const like=current.querySelector("[data-wall-like]");
+        if(counts[0] && Number(currentState.likes)!==Number(p.likes||0))
+          counts[0].textContent="♥ "+Number(p.likes||0)+" sviđanja";
+        if(counts[1] && Number(currentState.comments)!==Number(p.comments||0)){
+          counts[1].textContent=Number(p.comments||0)+" komentara";
+          if(commentOpen.has(p.id))loadCommentsFor.push(p.id);
+        }
+        if(like && Number(currentState.liked)!==Number(p.liked||0)){
+          const liked=Number(p.liked)>0;
+          like.classList.toggle("liked",liked);
+          like.textContent=liked?"♥ Sviđa mi se":"♡ Sviđa mi se";
+        }
+        const comments=current.querySelector("[data-wall-comment-section]");
+        if(comments)comments.hidden=!commentOpen.has(p.id);
+        postDomState.set(current,{stable,likes:p.likes,comments:p.comments,liked:p.liked});
+        next.push(current);
+      }else{
+        const template=document.createElement("template");
+        template.innerHTML=postCard(p);
+        const node=template.content.firstElementChild;
+        postDomState.set(node,{stable,likes:p.likes,comments:p.comments,liked:p.liked});
+        next.push(node);
+        if(commentOpen.has(p.id))loadCommentsFor.push(p.id);
+      }
+    }
+    // Preserve connected images, expanded comments and focused inputs.
+    // Replacing every card would visibly flash even when unchanged.
+    let cursor=el.firstChild;
+    for(const node of next){
+      if(node===cursor)cursor=cursor.nextSibling;
+      else el.insertBefore(node,cursor);
+    }
+    while(cursor){const following=cursor.nextSibling;cursor.remove();cursor=following;}
+    for(const id of loadCommentsFor)loadComments(id).catch(showError);
   }
   async function loadComments(id){
     const section=document.querySelector('[data-wall-comment-list="'+id+'"]');
@@ -284,11 +327,9 @@
       }
       if(button.hasAttribute("data-wall-like")){
         await api("wallLike",{id:Number(button.dataset.wallLike)});
-        const el=document.querySelector('[data-wall-post="'+button.dataset.wallLike+'"]');
         const item=await api("wallOne",{id:Number(button.dataset.wallLike)});
         feed=feed.map(p=>p.id===item.id?item:p);
-        if(el)el.outerHTML=postCard(item);
-        if(commentOpen.has(item.id))await loadComments(item.id);
+        draw();
         return;
       }
       if(button.hasAttribute("data-wall-comments")){
