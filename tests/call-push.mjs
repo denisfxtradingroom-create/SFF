@@ -35,7 +35,7 @@ const sent=await push.sendCall(2,{room:4,kind:"video",name:"alice"},async messag
   return "message-id";
 });
 assert.equal(sent,true);
-assert.equal(captured.notification.title,"Dolazni SFF video poziv");
+assert.equal(captured.notification,undefined);
 assert.equal(captured.android.priority,"high");
 assert.equal(captured.android.ttl,45000);
 assert.equal(captured.data.room,"4");
