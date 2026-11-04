@@ -14,6 +14,8 @@ jobs:
       - run: node --check backend/server.mjs
       - run: node --check backend/db.mjs
       - run: node tests/database-guard.mjs
+      - run: node --check backend/account-reset-once.mjs
+      - run: node tests/clean-slate.mjs
       - run: node --check backend/extras.mjs
       - run: node --check backend/roles.mjs
       - run: node --check client/app.js
