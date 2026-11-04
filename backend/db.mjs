@@ -11,10 +11,19 @@ const normalizeValue = (value) => {
   return value;
 };
 
-const normalizeRow = (row) => {
+const normalizeRow = (row, columns) => {
   if (!row) return row;
   const out = {};
-  for (const [k, v] of Object.entries(row)) out[k] = normalizeValue(v);
+  // Turso /compat returns array rows with NON-enumerable named columns.
+  // Object.entries(row) sees only numeric indexes, silently breaking all
+  // account queries (user.password, user.email, result.total, etc.).
+  if (Array.isArray(row) && Array.isArray(columns)) {
+    for (let i = 0; i < columns.length; i++) {
+      if (columns[i]) out[columns[i]] = normalizeValue(row[i]);
+    }
+  } else {
+    for (const [k, v] of Object.entries(row)) out[k] = normalizeValue(v);
+  }
   return out;
 };
 
@@ -30,11 +39,11 @@ export function wrapRemote(client) {
   const execute = async (sql, args = []) => client.execute({ sql, args });
   const all = async (sql, ...args) => {
     const result = await execute(sql, args);
-    return result.rows.map(normalizeRow);
+    return result.rows.map((row) => normalizeRow(row, result.columns));
   };
   const one = async (sql, ...args) => {
     const result = await execute(sql, args);
-    return normalizeRow(result.rows[0]);
+    return normalizeRow(result.rows[0], result.columns);
   };
   const run = async (sql, ...args) => {
     const result = await execute(sql, args);
