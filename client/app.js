@@ -344,6 +344,11 @@ onpopstate = (e) => {
   if (dlg.open) dlg.close();
   if (data) navigate(e.state?.page || "spaces", false);
 };
+// The authored layout HTML is tracked independently of the live DOM.
+// Enhancers may add unread badges or presence dots without forcing a repaint.
+const authoredShellParts = new Map();
+const shellPartSelectors = [".rail", ".side", ".members", ".mobileNav", ".chat .bar"];
+const authoredFeedNodes = new WeakMap();
 async function sync() {
   const n = ++seq,
     next = await api("state");
@@ -524,13 +529,22 @@ function render() {
     scratch.innerHTML = nextMarkup;
     const nextShell = scratch.querySelector(".shell");
     previousShell.dataset.page = page;
-    for (const selector of [".rail", ".side", ".members", ".mobileNav", ".chat .bar"]) {
+    for (const selector of shellPartSelectors) {
       const oldPart = previousShell.querySelector(selector);
       const newPart = nextShell.querySelector(selector);
-      if (oldPart && newPart && oldPart.outerHTML !== newPart.outerHTML)
+      const canonical = newPart?.outerHTML || "";
+      // Do NOT compare the modified live DOM with raw new markup.
+      if (oldPart && newPart && authoredShellParts.get(selector) !== canonical)
         oldPart.replaceWith(newPart);
+      authoredShellParts.set(selector, canonical);
     }
-  } else root.innerHTML = nextMarkup;
+  } else {
+    root.innerHTML = nextMarkup;
+    authoredShellParts.clear();
+    const shell = root.querySelector(".shell");
+    for (const selector of shellPartSelectors)
+      authoredShellParts.set(selector, shell?.querySelector(selector)?.outerHTML || "");
+  }
   const liveShell = root.querySelector(".shell");
   liveShell.dataset.activeRoom = String(room ?? "");
   liveShell.dataset.activeKind = String(r?.kind || "");
@@ -672,20 +686,25 @@ function drawFeed(bottom = true) {
               : "Počni razgovor",
           pins || search ? "" : "Prva poruka može biti tvoja.",
         ));
-  // Keep unchanged message elements, especially their images and media players.
-  if (feed.innerHTML !== markup) {
-    const original = new Map([...feed.querySelectorAll(":scope > article.msg[data-sff-msg-id]")]
-      .map((node) => [node.dataset.sffMsgId, node]));
-    const template = document.createElement("template");
-    template.innerHTML = markup;
-    const updated = [...template.content.childNodes].map((node) => {
-      if (node.nodeType !== 1 || !node.matches("article.msg[data-sff-msg-id]")) return node;
-      const same = original.get(node.dataset.sffMsgId);
-      return same && same.outerHTML === node.outerHTML ? same : node;
-    });
+  // Only replace nodes whose SERVER DATA changed. Other scripts add playback,
+  // avatar dots and badges, so comparing their mutated outerHTML is incorrect.
+  const wasNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 88;
+  const original = new Map([...feed.querySelectorAll(":scope > article.msg[data-sff-msg-id]")]
+    .map((node) => [node.dataset.sffMsgId, node]));
+  const template = document.createElement("template");
+  template.innerHTML = markup;
+  const updated = [...template.content.childNodes].map((node) => {
+    if (node.nodeType !== 1 || !node.matches("article.msg[data-sff-msg-id]")) return node;
+    const canonical = node.outerHTML;
+    const existing = original.get(node.dataset.sffMsgId);
+    if (existing && authoredFeedNodes.get(existing) === canonical) return existing;
+    authoredFeedNodes.set(node, canonical);
+    return node;
+  });
+  const existing = [...feed.childNodes];
+  if (existing.length !== updated.length || updated.some((node, i) => node !== existing[i]))
     feed.replaceChildren(...updated);
-  }
-  if (bottom) feed.scrollTop = feed.scrollHeight;
+  if (bottom && wasNearBottom) feed.scrollTop = feed.scrollHeight;
 }
 function updateSeen() {
   const badge = document.querySelector(".sffDmChat .sffSeen");
