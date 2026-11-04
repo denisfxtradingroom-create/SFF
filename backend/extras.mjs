@@ -1,4 +1,5 @@
 import { randomBytes, createHash, scrypt } from "node:crypto";
+import { expiryCutoff, isTimedMedia } from "./retention.mjs";
 import { promisify } from "node:util";
 const hash = (v) => createHash("sha256").update(v).digest("hex"),
   derive = promisify(scrypt);
@@ -369,7 +370,10 @@ export async function extras({
         )
       ).reverse();
       const out = [];
-      for (const m of rows) {
+      for (const row of rows) {
+        const expired = isTimedMedia(row.mime) && Number(row.time) <= expiryCutoff();
+        if (expired && !String(row.body || "").trim()) continue;
+        const m = expired ? { ...row, file: null, mime: null } : row;
         const thread = await one("select count(*) n from thread_posts where root=? and msg>?", m.id, deleted.deleted_through);
         out.push({
           ...m,
