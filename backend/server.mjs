@@ -110,7 +110,9 @@ const wall = await socialWall({db,one,all,run,insert,demand,blocked,limit,push})
 try {
   const current = await one("select count(*) as total from users");
   console.error("[SFF storage check] database=" + (db.remote ? "turso" : "local") +
-    " user_count=" + Number(current?.total || 0));
+    " user_count=" + Number(current?.total || 0) +
+    " mail_configured=" + extra.configured() +
+    " verification_required=" + extra.requireEmail());
 } catch (error) {
   console.error("[SFF storage check] unable to read account count:", error.message);
 }
