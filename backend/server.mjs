@@ -749,7 +749,7 @@ const server = http.createServer(async (req, res) => {
       );
       if (!u)
         demand(
-          ["register", "login", "capabilities", "forgot", "reset"].includes(
+          ["register", "login", "capabilities", "forgot", "reset", "recoverUsername"].includes(
             path.slice(5),
           ),
           "Prijavi se.",
