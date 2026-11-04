@@ -35,15 +35,15 @@
       }).then(async (response) => {
         if (!response.ok) return null;
         const result = await response.json();
-        return Number(result.me?.id) || null;
+        return result.me?.id && result.me?.username ? String(result.me.id) + ":" + String(result.me.username).toLowerCase() : null;
       }).catch(() => null).finally(() => { gettingIdentity = null; });
     }
     const value = await gettingIdentity;
     if (value) identity = value;
     return value;
   }
-  function historyKey(id) { return "sff.social.history." + id; }
-  function readKey(id) { return "sff.social.lastRead." + id; }
+  function historyKey(id) { return "sff.social.history.v2." + id; }
+  function readKey(id) { return "sff.social.lastRead.v2." + id; }
   function history(id) {
     try {
       const rows = JSON.parse(localStorage.getItem(historyKey(id)) || "[]");
@@ -234,7 +234,7 @@
     const id = identity;
     const count = id ? history(id).filter((x) =>
       x.id > Number(localStorage.getItem(readKey(id)) || 0)).length : 0;
-    for (const btn of document.querySelectorAll("[data-sff-home]")) {
+    for (const btn of document.querySelectorAll("[data-social-center]")) {
       const badge = btn.querySelector(".sffSocialCounter");
       if (!count) { badge?.remove(); continue; }
       if (badge) {

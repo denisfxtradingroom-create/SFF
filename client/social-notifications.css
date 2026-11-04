@@ -3,7 +3,8 @@
 .sffSocialCenterButton{position:relative;display:flex!important;align-items:center;gap:8px;min-height:42px;text-align:left;width:100%;padding:8px 12px!important}
 .sffSocialCenterButton img{width:24px;height:24px;object-fit:contain}
 .sffSocialCenterButton span:nth-child(2){flex:1}
-.sffSocialCounter{position:absolute;right:4px;top:0;min-width:17px;height:17px;border-radius:20px;display:grid;place-items:center;padding:1px 4px;box-sizing:content-box;background:#f1375e;color:#fff;font-size:10px;font-weight:800;border:2px solid #18141b}
+.sffWallTopActions [data-social-center],.sffWallAside [data-social-center]{position:relative}
+.sffSocialCounter{pointer-events:none;position:absolute;right:4px;top:0;min-width:17px;height:17px;border-radius:20px;display:grid;place-items:center;padding:1px 4px;box-sizing:content-box;background:#f1375e;color:#fff;font-size:10px;font-weight:800;border:2px solid #18141b}
 .sffSocialToast{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:12px;width:min(390px,calc(100vw - 24px));min-height:64px;z-index:10005;background:#28202b!important;color:#fff!important;border:1px solid #db526e!important;border-radius:17px!important;display:flex;align-items:center;gap:11px;text-align:left;box-sizing:border-box;padding:12px!important;box-shadow:0 18px 55px #000b}
 .sffSocialToast img{width:37px;height:37px;flex:none;object-fit:contain}
 .sffSocialToastText{flex:1;min-width:0;display:grid;gap:4px}
