@@ -1,5 +1,7 @@
 import { randomBytes, createHash, scrypt } from "node:crypto";
 import { promisify } from "node:util";
+import { addMessageMetadata } from "./message-metadata.mjs";
+import { retentionCutoff } from "./retention.mjs";
 const hash = (v) => createHash("sha256").update(v).digest("hex"),
   derive = promisify(scrypt);
 
@@ -441,8 +443,8 @@ export async function extras({
       if (!deleted) return;
       const rows = (
         await all(
-          "select m.id,m.uid,m.body,m.parent,m.time,m.pinned,m.edited,m.file,m.mime,u.name,u.username from messages m join users u on u.id=m.uid where room=? and m.id>? and ((?=0 and not exists(select 1 from thread_posts t where t.msg=m.id)) or m.id=? or exists(select 1 from thread_posts t where t.msg=m.id and t.root=?)) and m.id<? and instr(lower(m.body),lower(?))>0 and m.pinned>=? order by m.id desc limit 50",
-          r.id,
+          "select m.id,m.uid,case when m.time<=? and m.file is not null and trim(coalesce(m.body,''))='' then 'Prilog je uklonjen nakon 7 dana.' else m.body end body,m.parent,m.time,m.pinned,m.edited,case when m.time<=? then null else m.file end file,case when m.time<=? then null else m.mime end mime,u.name,u.username from messages m join users u on u.id=m.uid where room=? and m.id>? and ((?=0 and not exists(select 1 from thread_posts t where t.msg=m.id)) or m.id=? or exists(select 1 from thread_posts t where t.msg=m.id and t.root=?)) and m.id<? and instr(lower(m.body),lower(?))>0 and m.pinned>=? order by m.id desc limit 50",
+          retentionCutoff(), retentionCutoff(), retentionCutoff(), r.id,
           deleted.deleted_through,
           Number(b.thread) || 0,
           Number(b.thread) || 0,
@@ -452,16 +454,7 @@ export async function extras({
           b.pins ? 1 : 0,
         )
       ).reverse();
-      const out = [];
-      for (const m of rows) {
-        const thread = await one("select count(*) n from thread_posts where root=? and msg>?", m.id, deleted.deleted_through);
-        out.push({
-          ...m,
-          threadCount: thread?.n || 0,
-          reactions: await all("select emoji,count(*) n from reactions where msg=? group by emoji", m.id),
-        });
-      }
-      return out;
+      return addMessageMetadata(rows, all, deleted.deleted_through);
     }
 
     if (a === "post") {
