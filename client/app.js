@@ -145,6 +145,7 @@ let data,
   typing = 0,
   typingTimer,
   retry = 0;
+const lastReadSent = new Map();
 const current = () => data?.rooms.find((r) => r.id === room),
   community = () => data?.spaces.find((s) => s.id === space);
 const signature = '<small class="signature">Napravio: Denis.D98</small>';
@@ -531,14 +532,24 @@ async function historyLoad(older = false) {
   drawFeed(!older);
   if (older && feed) feed.scrollTop = feed.scrollHeight - h;
   if (
-    !older &&
-    !search &&
-    !pins &&
-    list.length &&
-    !document.hidden &&
+    !older && !search && !pins && !thread &&
+    list.length && !document.hidden &&
     (innerWidth > 760 || page === "chat")
-  )
-    await api("read", { room, last: list.at(-1).id });
+  ) {
+    const newest = list.at(-1).id;
+    if (newest > (lastReadSent.get(id) || 0)) {
+      lastReadSent.set(id, newest);
+      try {
+        // The server pushes a fresh 'state' update to every device after reading.
+        await api("read", { room: id, last: newest });
+        if (room === id && current()) current().unread = 0;
+        if (socket?.readyState !== 1) await sync();
+      } catch (error) {
+        lastReadSent.delete(id);
+        throw error;
+      }
+    }
+  }
 }
 function live() {
   if (!alive) return;
@@ -1242,6 +1253,12 @@ root.addEventListener(
   },
   { passive: true },
 );
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && data && room &&
+      (innerWidth > 760 || page === "chat"))
+    historyLoad().catch((e) => note(e.message));
+});
+
 api("state")
   .then(async (d) => {
     data = d;
