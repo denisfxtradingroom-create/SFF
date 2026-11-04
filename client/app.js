@@ -218,6 +218,8 @@ async function dmCallEvent(event) {
     dmCall.status = "active";
     showDmCall();
     try {
+      if (activeVoiceRoom() && activeVoiceRoom() !== dmCall.room)
+        voiceLeave();
       await voiceAction("join",dmCall.room);
       if (dmCall?.status === "active" && dmCall.kind === "video")
         await voiceAction("camera",dmCall.room);
@@ -764,7 +766,8 @@ function live() {
       if (await dmCallEvent(v)) return;
       if (await voiceEvent(v)) return;
       if (v.type === "error") {
-        if (activeVoiceRoom()) voiceLeave();
+        if (dmCall?.status === "outgoing") endDmCall(false);
+        if (activeVoiceRoom() && !dmCall) voiceLeave();
         return note(v.error);
       }
       if (v.type === "state") return queueStateRefresh();
