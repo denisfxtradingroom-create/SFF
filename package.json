@@ -7,7 +7,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "test": "node tests/dm-calls.mjs && node tests/social-activity.mjs && node tests/notification-transport.mjs && node tests/retention.mjs && node tests/retention-http.mjs && node tests/turso-named-rows.mjs && node tests/account-reset.mjs && node tests/signup.mjs && node tests/integration.mjs && node tests/email.mjs && node tests/email-brevo.mjs && node tests/advanced.mjs",
+    "test": "node tests/dm-seen.mjs && node tests/dm-calls.mjs && node tests/social-activity.mjs && node tests/notification-transport.mjs && node tests/retention.mjs && node tests/retention-http.mjs && node tests/turso-named-rows.mjs && node tests/account-reset.mjs && node tests/signup.mjs && node tests/integration.mjs && node tests/email.mjs && node tests/email-brevo.mjs && node tests/advanced.mjs",
     "start": "node backend/server.mjs"
   },
   "dependencies": {
