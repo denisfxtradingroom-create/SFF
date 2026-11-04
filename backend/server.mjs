@@ -217,6 +217,11 @@ async function action(a, b, u, res, req) {
     const username = str(b.username, 30).toLowerCase(),
       pw = passwordInput(b.password);
     let user = await one("select * from users where username=?", username);
+    let sessionCommitted = false;
+    const stayLoggedIn = b.remember !== false && b.remember !== "0";
+    const t = key();
+    const expires = Date.now() + (stayLoggedIn ? 90 : 0.5) * 86400000;
+
     if (a === "register") {
       const email = str(b.email, 160).toLowerCase(),
         emailConfirm = str(b.emailConfirm, 160).toLowerCase(),
@@ -231,25 +236,48 @@ async function action(a, b, u, res, req) {
       demand(/^\S+@\S+\.\S+$/.test(email), "Unesi ispravnu email adresu.", 400);
       demand(email === emailConfirm, "Email adrese se ne podudaraju.", 400);
       demand(b.password === b.passwordConfirm, "Lozinke se ne podudaraju.", 400);
-      demand(/^\p{L}[\p{L} .'-]*$/u.test(firstName) && /^\p{L}[\p{L} .'-]*$/u.test(lastName), "Ime i prezime mogu sadržati samo slova, razmake, apostrof, tačku i crticu.", 400);
-      demand(!user, "Ovo korisničko ime je već zauzeto.", 409);
-      demand(
-        !await one("select id from users where lower(name)=lower(?)", displayName),
-        "Ovo ime i prezime su već zauzeti.",
-        409,
-      );
-      demand(!await one("select id from users where email=?", email), "Za tu email adresu već postoji nalog.", 409);
-      demand(!extra.requireEmail() || extra.configured(), "Email servis nije konfigurisan. Registracija trenutno nije dostupna.", 503);
-      const salt = key(),
-        hash = (await derive(pw, salt, 64)).toString("hex");
-      await run(
-        "insert into users(username,email,password,name) values(?,?,?,?)",
-        username,
-        email,
-        salt + "." + hash,
-        displayName,
-      );
-      user = await one("select * from users where username=?", username);
+      demand(/^\p{L}[\p{L} .'-]*$/u.test(firstName) && /^\p{L}[\p{L} .'-]*$/u.test(lastName),
+        "Ime i prezime mogu sadržati samo slova, razmake, apostrof, tačku i crticu.", 400);
+
+      if (user) {
+        // A first attempt may have saved the account before an email provider
+        // failed. Allow only its owner (matching password AND email) to resume.
+        // Wrong credentials keep the same username-taken response.
+        let samePassword = false;
+        try {
+          const [salt, encoded] = user.password.split(".");
+          const actual = await derive(pw, salt, 64);
+          const expected = Buffer.from(encoded, "hex");
+          samePassword = expected.length === actual.length && timingSafeEqual(actual, expected);
+        } catch {}
+        demand(
+          String(user.email || "").toLowerCase() === email && samePassword,
+          "Ovo korisničko ime je već zauzeto. Ako je tvoje, izaberi Prijavi se ili Zaboravljena lozinka.",
+          409,
+        );
+      } else {
+        demand(
+          !await one("select id from users where lower(name)=lower(?)", displayName),
+          "Ovo ime i prezime su već zauzeti.", 409,
+        );
+        demand(!await one("select id from users where email=?", email),
+          "Za tu email adresu već postoji nalog.", 409);
+        demand(!extra.requireEmail() || extra.configured(),
+          "Email servis nije konfigurisan. Registracija trenutno nije dostupna.", 503);
+        const salt = key(),
+          hash = (await derive(pw, salt, 64)).toString("hex");
+        // Either both the user and first session are saved, or neither is.
+        await db.transaction(async (tx) => {
+          await tx.run(
+            "insert into users(username,email,password,name) values(?,?,?,?)",
+            username, email, salt + "." + hash, displayName,
+          );
+          user = await tx.one("select * from users where username=?", username);
+          demand(user, "Kreiranje naloga nije uspelo.", 500);
+          await tx.run("insert into sessions values(?,?,?)", digest(t), user.id, expires);
+        });
+        sessionCommitted = true;
+      }
     } else {
       const [salt, hash] = (
         user?.password || "invalid." + "0".repeat(128)
@@ -257,29 +285,34 @@ async function action(a, b, u, res, req) {
       const actual = await derive(pw, salt, 64);
       demand(
         user && timingSafeEqual(actual, Buffer.from(hash, "hex")),
-        "Neuspešna prijava.",
-        401,
+        "Neuspešna prijava.", 401,
       );
     }
-    const stayLoggedIn = b.remember !== false && b.remember !== "0";
-    const t = key();
-    await run(
-      "insert into sessions values(?,?,?)",
-      digest(t),
-      user.id,
-      Date.now() + (stayLoggedIn ? 90 : 0.5) * 86400000,
-    );
+
+    if (!sessionCommitted) {
+      await run("insert into sessions values(?,?,?)", digest(t), user.id, expires);
+    }
     res.setHeader(
       "Set-Cookie",
-      "sff=" +
-        t +
-        "; HttpOnly; SameSite=Strict; Path=/" +
-        (stayLoggedIn ? "; Max-Age=7776000" : "") +
-        (process.env.SFF_HTTPS === "1" ? "; Secure" : ""),
+      "sff=" + t + "; HttpOnly; SameSite=Strict; Path=/" +
+      (stayLoggedIn ? "; Max-Age=7776000" : "") +
+      (process.env.SFF_HTTPS === "1" ? "; Secure" : ""),
     );
-    if (a === "register" && extra.requireEmail())
-      await extra.handle("verifySend", {}, user.id, ip);
-    return await state(user.id);
+    let emailDeliveryFailed = false;
+    if (a === "register" && extra.requireEmail()) {
+      const verified = (await one("select verified from preferences where uid=?", user.id))?.verified;
+      if (!verified) {
+        try {
+          await extra.handle("verifySend", {}, user.id, ip);
+        } catch (error) {
+          // Don't fail registration after the account has been committed.
+          // The person can retry the email code from the verification screen.
+          emailDeliveryFailed = true;
+          console.warn("[SFF mail] Verification delivery failed after registration:", error.message);
+        }
+      }
+    }
+    return { ...(await state(user.id)), emailDeliveryFailed };
   }
   demand(u, "Prijavi se.", 401);
   if (extra.requireEmail() && !(await one("select verified from preferences where uid=?", u))?.verified)
