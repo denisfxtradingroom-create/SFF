@@ -358,13 +358,14 @@ function render() {
       .join("") +
     (sp && sp.role !== "Member" ? btn("moderation", "Moderacija") : "") +
     "</aside>";
-  root.innerHTML =
+  const nextMarkup =
     '<div class="shell" data-page="' +
     page +
     '">' +
     rail +
     side +
-    '<section class="chat"><header class="bar"><div><span class="eyebrow">' +
+    '<section class="chat' + (r?.kind === "dm" ? " sffDmChat" : "") +
+    '"><header class="bar"><div><span class="eyebrow">' +
     esc(sp?.name || "SFF / PRIVATNO") +
     "</span><h2>" +
     esc(r ? (r.kind === "voice" ? "◉ " : "# ") + r.name : "Razgovor") +
@@ -404,7 +405,27 @@ function render() {
     btn("membersPage", "Članovi") +
     btn("profile", "Profil") +
     "</nav></div>";
-  if (r?.kind === "voice") voice(r.id);
+  // Keep the chat, composer, scroll position and media nodes when updating state.
+  const previousShell = root.querySelector(".shell");
+  const preserveChat = previousShell &&
+    previousShell.dataset.activeRoom === String(room ?? "") &&
+    previousShell.dataset.activeKind === String(r?.kind || "");
+  if (preserveChat) {
+    const scratch = document.createElement("div");
+    scratch.innerHTML = nextMarkup;
+    const nextShell = scratch.querySelector(".shell");
+    previousShell.dataset.page = page;
+    for (const selector of [".rail", ".side", ".members", ".mobileNav", ".chat .bar"]) {
+      const oldPart = previousShell.querySelector(selector);
+      const newPart = nextShell.querySelector(selector);
+      if (oldPart && newPart && oldPart.outerHTML !== newPart.outerHTML)
+        oldPart.replaceWith(newPart);
+    }
+  } else root.innerHTML = nextMarkup;
+  const liveShell = root.querySelector(".shell");
+  liveShell.dataset.activeRoom = String(room ?? "");
+  liveShell.dataset.activeKind = String(r?.kind || "");
+  if (r?.kind === "voice" && !preserveChat) voice(r.id);
   const input = document.querySelector("[name=body]");
   if (input) {
     input.value = draft;
@@ -453,7 +474,9 @@ function format(t) {
 function drawFeed(bottom = true) {
   const feed = document.querySelector("#feed");
   if (!feed) return;
-  feed.innerHTML =
+  const lastMine = current()?.kind === "dm"
+    ? [...list].reverse().find((m) => m.uid === data?.me?.id)?.id : null;
+  const markup =
     (list.length >= 50 ? btn("older", "Ranije poruke") : "") +
     (thread ? btn("thread", "← Kanal · nit #" + thread, "0") : "") +
     (search ? btn("clearSearch", "Pretraga · " + search + " ×") : "") +
@@ -461,7 +484,9 @@ function drawFeed(bottom = true) {
       ? list
           .map(
             (m) =>
-              '<article class="msg">' +
+              '<article class="msg' +
+              (current()?.kind === "dm" ? (m.uid === data.me.id ? " sffOwn" : " sffOther") : "") +
+              '" data-sff-msg-id="' + Number(m.id) + '">' +
               (art("user", m.uid, "avatar", "avatar") ||
                 '<span class="avatar">' + esc(m.name[0]) + "</span>") +
               '<div class="bubble"><span class="author" data-sff-user-id="' +
@@ -521,7 +546,13 @@ function drawFeed(bottom = true) {
                   )
                 : "") +
               btn("actions", "•••", m.id) +
-              "</div></div></article>",
+              "</div>" +
+              (m.id === lastMine
+                ? '<small class="sffSeen" data-sff-seen-room="' + Number(room) + '">' +
+                    (Number(data?.dmSeen?.[room] || 0) >= m.id ? "✓✓ Viđeno" : "✓ Poslato") +
+                  "</small>"
+                : "") +
+              "</div></article>",
           )
           .join("")
       : empty(
@@ -532,7 +563,27 @@ function drawFeed(bottom = true) {
               : "Počni razgovor",
           pins || search ? "" : "Prva poruka može biti tvoja.",
         ));
+  // Keep unchanged message elements, especially their images and media players.
+  if (feed.innerHTML !== markup) {
+    const original = new Map([...feed.querySelectorAll(":scope > article.msg[data-sff-msg-id]")]
+      .map((node) => [node.dataset.sffMsgId, node]));
+    const template = document.createElement("template");
+    template.innerHTML = markup;
+    const updated = [...template.content.childNodes].map((node) => {
+      if (node.nodeType !== 1 || !node.matches("article.msg[data-sff-msg-id]")) return node;
+      const same = original.get(node.dataset.sffMsgId);
+      return same && same.outerHTML === node.outerHTML ? same : node;
+    });
+    feed.replaceChildren(...updated);
+  }
   if (bottom) feed.scrollTop = feed.scrollHeight;
+}
+function updateSeen() {
+  const badge = document.querySelector(".sffDmChat .sffSeen");
+  if (!badge || current()?.kind !== "dm") return;
+  const latest = [...list].reverse().find((m) => m.uid === data?.me?.id);
+  if (latest) badge.textContent =
+    Number(data?.dmSeen?.[room] || 0) >= latest.id ? "✓✓ Viđeno" : "✓ Poslato";
 }
 async function historyLoad(older = false) {
   if (!room || !current() || current().kind === "voice") return;
@@ -548,8 +599,11 @@ async function historyLoad(older = false) {
     before: older ? list[0]?.id : 0,
   });
   if (room !== id || n !== feedSeq) return;
-  list = older ? [...rows, ...list] : rows;
-  drawFeed(!older);
+  const nextRows = older ? [...rows, ...list] : rows;
+  const changed = JSON.stringify(nextRows) !== JSON.stringify(list);
+  list = nextRows;
+  if (changed || !feed?.querySelector(".msg")) drawFeed(!older);
+  else updateSeen();
   if (older && feed) feed.scrollTop = feed.scrollHeight - h;
   if (
     !older && !search && !pins && !thread &&
@@ -609,6 +663,14 @@ function live() {
         return note(v.error);
       }
       if (v.type === "state") return queueStateRefresh();
+      if (v.type === "read_receipt") {
+        if (data && v.uid !== data.me.id) {
+          data.dmSeen ||= {};
+          data.dmSeen[v.room] = Math.max(Number(data.dmSeen[v.room] || 0),Number(v.last || 0));
+          if (v.room === room) updateSeen();
+        }
+        return;
+      }
       if (v.type === "typing" && v.room === room && v.uid !== data.me.id) {
         context(v.name + " piše…");
         clearTimeout(typingTimer);
@@ -1171,7 +1233,8 @@ document.addEventListener("submit", async (e) => {
       f.reset();
       file = reply = null;
       context();
-      await historyLoad();
+      // WebSocket brings the new message, avoid a duplicate Turso read.
+      if (socket?.readyState !== 1) await historyLoad();
       return;
     }
     if (a === "search") {
