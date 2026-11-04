@@ -147,6 +147,105 @@ let data,
   typingTimer,
   retry = 0;
 const lastReadSent = new Map();
+let dmCall = null;
+function showDmCall() {
+  let overlay = document.querySelector("#sffCallOverlay");
+  if (!dmCall) { overlay?.remove(); return; }
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "sffCallOverlay";
+    overlay.className = "sffCallOverlay";
+    document.body.appendChild(overlay);
+  }
+  const kind = dmCall.kind === "video" ? "Video poziv" : "Glasovni poziv";
+  const heading = dmCall.status === "incoming"
+    ? "Dolazni " + kind.toLowerCase()
+    : dmCall.status === "outgoing" ? "Pozivanje…" : kind + " u toku";
+  const actions = dmCall.status === "incoming"
+    ? '<button type="button" class="sffCallAnswer" data-sff-call="accept">Javi se</button>' +
+      '<button type="button" class="sffCallEnd" data-sff-call="decline">Odbij</button>'
+    : '<button type="button" class="sffCallEnd" data-sff-call="end">Prekini poziv</button>';
+  // Build only on status transitions; voice.js owns media nodes after connection.
+  overlay.innerHTML = '<section class="sffCallPanel" role="dialog" aria-modal="true">' +
+    "<h2>" + esc(heading) + "</h2>" +
+    "<p>" + esc(dmCall.status === "incoming" ? (dmCall.name || "Korisnik") + " te zove" :
+      dmCall.status === "outgoing" ? "Čekamo odgovor…" : "Privatni poziv je povezan.") + "</p>" +
+    '<div class="sffCallActions">' + actions + "</div>" +
+    (dmCall.status === "active" ? '<div id="voice"></div>' : "") +
+    "</section>";
+}
+function endDmCall(send = false) {
+  const former = dmCall;
+  dmCall = null;
+  if (send && former && socket?.readyState === 1)
+    sendVoice({type:"call_end",room:former.room});
+  if (former?.status === "active") voiceLeave();
+  showDmCall();
+}
+async function dmCallEvent(event) {
+  if (!["call_incoming","call_outgoing","call_accepted",
+        "call_ended","call_unavailable"].includes(event.type)) return false;
+  if (event.type === "call_unavailable") {
+    if (dmCall?.room === event.room) endDmCall(false);
+    note(event.reason || "Korisnik trenutno nije dostupan.");
+    return true;
+  }
+  if (event.type === "call_ended") {
+    if (dmCall?.room === event.room) {
+      endDmCall(false);
+      if (event.reason !== "answered_on_other_device")
+        note(event.reason === "missed" ? "Nije odgovoreno na poziv." : "Poziv je završen.");
+    }
+    return true;
+  }
+  if (event.type === "call_incoming") {
+    if (dmCall) return true;
+    dmCall = {room:event.room,kind:event.kind,name:event.name,status:"incoming"};
+    showDmCall();
+    try {
+      navigator.vibrate?.([180,110,180]);
+      if (document.hidden) {
+        if (window.SFFAndroid?.show) window.SFFAndroid.show("Dolazni SFF poziv: " + event.name);
+        else if (window.Notification?.permission === "granted")
+          new Notification("Dolazni SFF poziv",{
+            body:(event.name || "Prijatelj") + " te zove.",tag:"sff-incoming-call"});
+      }
+    } catch {}
+    return true;
+  }
+  if (event.type === "call_outgoing") return true;
+  if (event.type === "call_accepted" && dmCall?.room === event.room) {
+    dmCall.status = "active";
+    showDmCall();
+    try {
+      if (activeVoiceRoom() && activeVoiceRoom() !== dmCall.room)
+        voiceLeave();
+      await voiceAction("join",dmCall.room);
+      if (dmCall?.status === "active" && dmCall.kind === "video")
+        await voiceAction("camera",dmCall.room);
+    } catch (error) {
+      note(error.message);
+      endDmCall(true);
+    }
+    return true;
+  }
+  return true;
+}
+document.addEventListener("click",(event)=>{
+  const control = event.target.closest("[data-sff-call]");
+  if (!control || !dmCall) return;
+  event.preventDefault();
+  const action = control.dataset.sffCall;
+  try {
+    if (action === "accept") {
+      sendVoice({type:"call_accept",room:dmCall.room});
+      control.disabled = true;
+    } else if (action === "decline") {
+      sendVoice({type:"call_decline",room:dmCall.room});
+      endDmCall(false);
+    } else if (action === "end") endDmCall(true);
+  } catch (error) { note(error.message); }
+});
 window.SFFNotificationIdentity = () => data?.me
   ? String(data.me.id) + ":" + String(data.me.username).toLowerCase()
   : null;
@@ -358,13 +457,14 @@ function render() {
       .join("") +
     (sp && sp.role !== "Member" ? btn("moderation", "Moderacija") : "") +
     "</aside>";
-  root.innerHTML =
+  const nextMarkup =
     '<div class="shell" data-page="' +
     page +
     '">' +
     rail +
     side +
-    '<section class="chat"><header class="bar"><div><span class="eyebrow">' +
+    '<section class="chat' + (r?.kind === "dm" ? " sffDmChat" : "") +
+    '"><header class="bar"><div><span class="eyebrow">' +
     esc(sp?.name || "SFF / PRIVATNO") +
     "</span><h2>" +
     esc(r ? (r.kind === "voice" ? "◉ " : "# ") + r.name : "Razgovor") +
@@ -375,6 +475,9 @@ function render() {
       ? btn("search", "Pretraga") +
         btn("pins", pins ? "Sve poruke" : "Igle") +
         btn("alerts", "Zvono") +
+        (r.kind === "dm"
+          ? btn("callAudio", "☎ Poziv") + btn("callVideo", "▣ Video")
+          : "") +
         (sp && sp.role !== "Member" ? btn("category", "Kategorija") : "")
       : "") +
     "</div></header>" +
@@ -404,7 +507,27 @@ function render() {
     btn("membersPage", "Članovi") +
     btn("profile", "Profil") +
     "</nav></div>";
-  if (r?.kind === "voice") voice(r.id);
+  // Keep the chat, composer, scroll position and media nodes when updating state.
+  const previousShell = root.querySelector(".shell");
+  const preserveChat = previousShell &&
+    previousShell.dataset.activeRoom === String(room ?? "") &&
+    previousShell.dataset.activeKind === String(r?.kind || "");
+  if (preserveChat) {
+    const scratch = document.createElement("div");
+    scratch.innerHTML = nextMarkup;
+    const nextShell = scratch.querySelector(".shell");
+    previousShell.dataset.page = page;
+    for (const selector of [".rail", ".side", ".members", ".mobileNav", ".chat .bar"]) {
+      const oldPart = previousShell.querySelector(selector);
+      const newPart = nextShell.querySelector(selector);
+      if (oldPart && newPart && oldPart.outerHTML !== newPart.outerHTML)
+        oldPart.replaceWith(newPart);
+    }
+  } else root.innerHTML = nextMarkup;
+  const liveShell = root.querySelector(".shell");
+  liveShell.dataset.activeRoom = String(room ?? "");
+  liveShell.dataset.activeKind = String(r?.kind || "");
+  if (r?.kind === "voice" && !preserveChat) voice(r.id);
   const input = document.querySelector("[name=body]");
   if (input) {
     input.value = draft;
@@ -453,7 +576,9 @@ function format(t) {
 function drawFeed(bottom = true) {
   const feed = document.querySelector("#feed");
   if (!feed) return;
-  feed.innerHTML =
+  const lastMine = current()?.kind === "dm"
+    ? [...list].reverse().find((m) => m.uid === data?.me?.id)?.id : null;
+  const markup =
     (list.length >= 50 ? btn("older", "Ranije poruke") : "") +
     (thread ? btn("thread", "← Kanal · nit #" + thread, "0") : "") +
     (search ? btn("clearSearch", "Pretraga · " + search + " ×") : "") +
@@ -461,7 +586,9 @@ function drawFeed(bottom = true) {
       ? list
           .map(
             (m) =>
-              '<article class="msg">' +
+              '<article class="msg' +
+              (current()?.kind === "dm" ? (m.uid === data.me.id ? " sffOwn" : " sffOther") : "") +
+              '" data-sff-msg-id="' + Number(m.id) + '">' +
               (art("user", m.uid, "avatar", "avatar") ||
                 '<span class="avatar">' + esc(m.name[0]) + "</span>") +
               '<div class="bubble"><span class="author" data-sff-user-id="' +
@@ -521,7 +648,13 @@ function drawFeed(bottom = true) {
                   )
                 : "") +
               btn("actions", "•••", m.id) +
-              "</div></div></article>",
+              "</div>" +
+              (m.id === lastMine
+                ? '<small class="sffSeen" data-sff-seen-room="' + Number(room) + '">' +
+                    (Number(data?.dmSeen?.[room] || 0) >= m.id ? "✓✓ Viđeno" : "✓ Poslato") +
+                  "</small>"
+                : "") +
+              "</div></article>",
           )
           .join("")
       : empty(
@@ -532,7 +665,27 @@ function drawFeed(bottom = true) {
               : "Počni razgovor",
           pins || search ? "" : "Prva poruka može biti tvoja.",
         ));
+  // Keep unchanged message elements, especially their images and media players.
+  if (feed.innerHTML !== markup) {
+    const original = new Map([...feed.querySelectorAll(":scope > article.msg[data-sff-msg-id]")]
+      .map((node) => [node.dataset.sffMsgId, node]));
+    const template = document.createElement("template");
+    template.innerHTML = markup;
+    const updated = [...template.content.childNodes].map((node) => {
+      if (node.nodeType !== 1 || !node.matches("article.msg[data-sff-msg-id]")) return node;
+      const same = original.get(node.dataset.sffMsgId);
+      return same && same.outerHTML === node.outerHTML ? same : node;
+    });
+    feed.replaceChildren(...updated);
+  }
   if (bottom) feed.scrollTop = feed.scrollHeight;
+}
+function updateSeen() {
+  const badge = document.querySelector(".sffDmChat .sffSeen");
+  if (!badge || current()?.kind !== "dm") return;
+  const latest = [...list].reverse().find((m) => m.uid === data?.me?.id);
+  if (latest) badge.textContent =
+    Number(data?.dmSeen?.[room] || 0) >= latest.id ? "✓✓ Viđeno" : "✓ Poslato";
 }
 async function historyLoad(older = false) {
   if (!room || !current() || current().kind === "voice") return;
@@ -548,8 +701,11 @@ async function historyLoad(older = false) {
     before: older ? list[0]?.id : 0,
   });
   if (room !== id || n !== feedSeq) return;
-  list = older ? [...rows, ...list] : rows;
-  drawFeed(!older);
+  const nextRows = older ? [...rows, ...list] : rows;
+  const changed = JSON.stringify(nextRows) !== JSON.stringify(list);
+  list = nextRows;
+  if (changed || !feed?.querySelector(".msg")) drawFeed(!older);
+  else updateSeen();
   if (older && feed) feed.scrollTop = feed.scrollHeight - h;
   if (
     !older && !search && !pins && !thread &&
@@ -592,6 +748,10 @@ function live() {
     }
   };
   socket.onclose = () => {
+    if (dmCall) {
+      endDmCall(false);
+      note("Poziv je prekinut zbog gubitka veze.");
+    }
     resumeVoice = activeVoiceRoom();
     voiceLeave();
     if (alive) {
@@ -603,12 +763,22 @@ function live() {
   socket.onmessage = async (e) => {
     try {
       const v = JSON.parse(e.data);
+      if (await dmCallEvent(v)) return;
       if (await voiceEvent(v)) return;
       if (v.type === "error") {
-        if (activeVoiceRoom()) voiceLeave();
+        if (dmCall?.status === "outgoing") endDmCall(false);
+        if (activeVoiceRoom() && !dmCall) voiceLeave();
         return note(v.error);
       }
       if (v.type === "state") return queueStateRefresh();
+      if (v.type === "read_receipt") {
+        if (data && v.uid !== data.me.id) {
+          data.dmSeen ||= {};
+          data.dmSeen[v.room] = Math.max(Number(data.dmSeen[v.room] || 0),Number(v.last || 0));
+          if (v.room === room) updateSeen();
+        }
+        return;
+      }
       if (v.type === "typing" && v.room === room && v.uid !== data.me.id) {
         context(v.name + " piše…");
         clearTimeout(typingTimer);
@@ -869,7 +1039,19 @@ async function act(a, id) {
     return navigate(
       { spacesPage: "spaces", membersPage: "members", chatPage: "chat" }[a],
     );
-  if (a.startsWith("voice-")) return voiceAction(a.slice(6), room);
+  if (a.startsWith("voice-")) {
+    if (a === "voice-leave" && dmCall) return endDmCall(true);
+    return voiceAction(a.slice(6), dmCall?.room || room);
+  }
+  if (a === "callAudio" || a === "callVideo") {
+    if (current()?.kind !== "dm" || dmCall) return;
+    if (socket?.readyState !== 1) throw Error("Veza za pozive nije dostupna.");
+    const kind = a === "callVideo" ? "video" : "audio";
+    dmCall = {room,kind,status:"outgoing"};
+    showDmCall();
+    sendVoice({type:"call_invite",room,kind});
+    return;
+  }
   if (a === "space" || a === "friends") {
     if (a === "friends" && !space && page === "friends") {
       friendsDialog();
@@ -1171,7 +1353,8 @@ document.addEventListener("submit", async (e) => {
       f.reset();
       file = reply = null;
       context();
-      await historyLoad();
+      // WebSocket brings the new message, avoid a duplicate Turso read.
+      if (socket?.readyState !== 1) await historyLoad();
       return;
     }
     if (a === "search") {

@@ -2,6 +2,7 @@ import { rolePolicy } from "./roles.mjs";
 import { extras } from "./extras.mjs";
 import { socialWall } from "./wall.mjs";
 import { openDatabase } from "./db.mjs";
+import { createDmCallManager } from "./dm-calls.mjs";
 import { addMessageMetadata } from "./message-metadata.mjs";
 import { initRetention, purgeExpiredContent, retentionCutoff } from "./retention.mjs";
 import { resetSffWhenRequested } from "./account-reset.mjs";
@@ -99,6 +100,7 @@ const push = async (event, filter) => {
     if (s.readyState === 1 && (await filter(s))) s.send(JSON.stringify(event));
   }
 };
+const dmCalls = createDmCallManager({sockets,roomFor,all,one,demand,limit});
 const extra = await extras({
   db,
   one,
@@ -174,13 +176,15 @@ async function state(u) {
     "coalesce(d.deleted_through,0) deleted_through," +
     "(select count(*) from messages m where m.room=r.id and m.uid!=? " +
     "and m.id>max(coalesce(rd.last,0),coalesce(d.deleted_through,0))) unread," +
+    "coalesce((select max(other.last) from reads other where other.room=r.id " +
+    "and other.uid!=? and r.kind='dm'),0) seen," +
     "coalesce(meta.category,'') category " +
     "from rooms r " +
     "left join reads rd on rd.room=r.id and rd.uid=? " +
     "left join chat_deletions d on d.room=r.id and d.uid=? and r.space is null " +
     "left join room_meta meta on meta.room=r.id " +
     "where r.id in (" + markers + ")",
-    u, u, u, ...roomIds
+    u, u, u, u, ...roomIds
   ) : [];
   const roomInfo = new Map(roomRows.map((row) => [row.id, row]));
   const dmRows = roomIds.length ? await all(
@@ -191,6 +195,9 @@ async function state(u) {
     u, ...roomIds
   ) : [];
   const dmNames = new Map(dmRows.map((row) => [row.room, row.names]));
+  // Read receipts piggyback on the existing room query: no extra Turso round trip.
+  const dmSeen = Object.fromEntries(roomRows.map((row) =>
+    [row.id, Number(row.seen || 0)]));
   const rooms = [];
   for (const x of ids) {
     const r = await roomFor(x.id, u);
@@ -223,6 +230,7 @@ async function state(u) {
   return {
     ...(await extra.options(u)),
     online: onlineIds,
+    dmSeen,
     art: await all(
       "select scope,id,slot from artwork where (scope='user' and (id=? or id in(select uid from members where space in(select space from members where uid=?)) or id in(select uid from participants where room in(select room from participants where uid=?)) or id in(select case when sender=? then target else sender end from friends where accepted=1 and (sender=? or target=?)))) or (scope='space' and id in(select space from members where uid=?))",
       u,
@@ -601,6 +609,10 @@ async function action(a, b, u, res, req) {
         r.id, u, through,
       );
       await push({ type: "state" }, (s) => s.uid === u);
+      if (r.kind === "dm") {
+        await push({type:"read_receipt",room:r.id,uid:u,last:through},
+          (s)=>s.uid!==u && roomFor(r.id,s.uid));
+      }
     }
     return { last: Math.max(through, Number(previous?.last || 0)) };
   }
@@ -899,6 +911,7 @@ server.on("upgrade", async (req, socket, head) => {
       s.voice = null;
     };
     s.on("close", () => {
+      dmCalls.disconnected(s);
       void leave();
       sockets.delete(s);
     });
@@ -908,31 +921,36 @@ server.on("upgrade", async (req, socket, head) => {
         demand(await session(token));
         limit("ws" + uid, 600);
         const b = JSON.parse(raw);
+        if (await dmCalls.handle(s,b)) return;
         if (b.type === "leave") return await leave();
         const r = await roomFor(b.room, uid);
-        demand(
-          r?.kind === "voice" &&
-            r.canVoice &&
-            !await one(
-              "select 1 from timeouts where space=? and uid=? and until>?",
-              r.space,
-              uid,
-              Date.now(),
-            ),
-        );
+        const allowedDmCall = r?.kind === "dm" && dmCalls.authorized(s,r.id);
+        const allowedVoiceRoom = r?.kind === "voice" && r.canVoice &&
+          !await one(
+            "select 1 from timeouts where space=? and uid=? and until>?",
+            r.space,uid,Date.now()
+          );
+        demand(allowedDmCall || allowedVoiceRoom,"Nemaš pristup ovom pozivu.",403);
         if (b.type === "voice") {
           await leave();
           const peers = [];
           for (const p of sockets) {
             if (p.voice === r.id && (await roomFor(r.id, p.uid))) peers.push(p);
           }
-          demand(peers.length < 8, "Kanal je pun.");
+          demand(peers.length < (allowedDmCall ? 2 : 8), "Kanal je pun.");
           s.voice = r.id;
           s.send(
             JSON.stringify({
               type: "peers",
               peers: peers.map((p) => ({ peer: p.peer, uid: p.uid })),
-              ice: JSON.parse(process.env.SFF_ICE || "[]"),
+              ice: (() => {
+                const configured = JSON.parse(process.env.SFF_ICE || "[]");
+                // Free public STUN improves private calls across common NATs.
+                // Keep the existing voice-channel configuration unchanged.
+                return allowedDmCall && !configured.length
+                  ? [{urls:"stun:stun.l.google.com:19302"}]
+                  : configured;
+              })(),
             }),
           );
         } else if (b.type === "signal") {

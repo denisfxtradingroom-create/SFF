@@ -56,6 +56,18 @@ export async function socialWall({db,one,all,run,insert,demand,blocked,limit,pus
   async function inform(author) {
     await push({type:"wall_changed",uid:author},async(s)=>s.uid===author||await canSee(s.uid,author));
   }
+  async function socialActivity(kind,actor,author,post) {
+    const person=await one("select name,username from users where id=?",actor);
+    if(!person)return;
+    const event={type:"social_activity",kind,uid:actor,
+      name:person.name,username:person.username,post,at:Date.now()};
+    if(kind==="post") {
+      // Announce new posts to friends only; never to the author or strangers.
+      await push(event,async(s)=>s.uid!==actor && await canSee(s.uid,actor));
+    } else if(author!==actor) {
+      await push(event,(s)=>s.uid===author);
+    }
+  }
   async function handle(a,b,u,req){
     if(!a.startsWith("wall"))return;
     demand(u,"Prijavi se da vidiš Početnu.",401);
@@ -80,7 +92,9 @@ export async function socialWall({db,one,all,run,insert,demand,blocked,limit,pus
       demand(body||img,"Napiši tekst ili dodaj sliku.",400);
       const id=await insert("insert into wall_posts(uid,body,created,image_mime,image_bytes) values(?,?,?,?,?)",
         u,body,Date.now(),mime,img);
-      await inform(u);return {id};
+      await inform(u);
+      await socialActivity("post",u,u,id);
+      return {id};
     }
     if(a==="wallDelete"){
       const id=positive(b.id);
@@ -99,7 +113,9 @@ export async function socialWall({db,one,all,run,insert,demand,blocked,limit,pus
       const liked=await one("select 1 from wall_likes where post=? and uid=?",id,u);
       if(liked)await run("delete from wall_likes where post=? and uid=?",id,u);
       else await run("insert or ignore into wall_likes values(?,?)",id,u);
-      await inform(p.uid);return {liked:!liked};
+      await inform(p.uid);
+      if(!liked)await socialActivity("like",u,p.uid,id);
+      return {liked:!liked};
     }
     if(a==="wallComment"){
       limit("wall:comment:"+u,45);
@@ -107,7 +123,9 @@ export async function socialWall({db,one,all,run,insert,demand,blocked,limit,pus
       demand(body,"Napiši komentar.",400);
       const cid=await insert("insert into wall_comments(post,uid,body,created) values(?,?,?,?)",
         id,u,body,Date.now());
-      await inform(p.uid);return {id:cid};
+      await inform(p.uid);
+      await socialActivity("comment",u,p.uid,id);
+      return {id:cid};
     }
     if(a==="wallComments"){
       const id=positive(b.id);await item(u,id);
