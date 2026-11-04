@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@tursodatabase/serverless": "1.4.1",
+    "firebase-admin": "14.5.0",
     "ws": "8.22.1"
   }
 }
