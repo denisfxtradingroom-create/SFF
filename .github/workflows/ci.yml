@@ -29,4 +29,5 @@ jobs:
       - run: node tests/ambient-theme.mjs
       - run: node tests/mail-failure.mjs
       - run: node tests/recovery.mjs
+      - run: node tests/recovery-ui.mjs
       - run: npm test
