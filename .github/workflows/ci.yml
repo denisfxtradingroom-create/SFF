@@ -27,4 +27,5 @@ jobs:
       - run: node tests/read-state.mjs
       - run: node tests/notification-badges.mjs
       - run: node tests/ambient-theme.mjs
+      - run: node tests/mail-failure.mjs
       - run: npm test
