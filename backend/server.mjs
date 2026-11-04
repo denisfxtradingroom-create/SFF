@@ -258,10 +258,6 @@ async function action(a, b, u, res, req) {
           409,
         );
       } else {
-        demand(
-          !await one("select id from users where lower(name)=lower(?)", displayName),
-          "Ovo ime i prezime su već zauzeti.", 409,
-        );
         demand(!await one("select id from users where email=?", email),
           "Za tu email adresu već postoji nalog.", 409);
         demand(!extra.requireEmail() || extra.configured(),
@@ -342,11 +338,6 @@ async function action(a, b, u, res, req) {
       ["Online", "Idle", "Do Not Disturb", "Invisible"].includes(b.status),
     );
     const displayName = str(b.name, 80);
-    demand(
-      !await one("select id from users where lower(name)=lower(?) and id!=?", displayName, u),
-      "Ovo ime i prezime su već zauzeti.",
-      409,
-    );
     await run(
       "update users set name=?,about=?,status=?,custom=? where id=?",
       displayName,
