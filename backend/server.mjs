@@ -3,6 +3,7 @@ import { extras } from "./extras.mjs";
 import { socialWall } from "./wall.mjs";
 import { openDatabase } from "./db.mjs";
 import { createDmCallManager } from "./dm-calls.mjs";
+import { createIceResolver, cloudflareTurnConfigured } from "./turn-ice.mjs";
 import { createPushDevices, pushConfigured } from "./call-push.mjs";
 import { addMessageMetadata } from "./message-metadata.mjs";
 import { initRetention, purgeExpiredContent, retentionCutoff } from "./retention.mjs";
@@ -106,6 +107,7 @@ const dmCalls = createDmCallManager({
   sockets,roomFor,all,one,demand,limit,
   callPush: pushConfigured() ? callPush : null
 });
+const resolveIce = createIceResolver();
 const extra = await extras({
   db,
   one,
@@ -154,7 +156,8 @@ try {
     " user_count=" + Number(current?.total || 0) +
     " mail_configured=" + extra.configured() +
     " verification_required=" + extra.requireEmail() +
-    " push_configured=" + pushConfigured());
+    " push_configured=" + pushConfigured() +
+    " turn_configured=" + cloudflareTurnConfigured());
 } catch (error) {
   console.error("[SFF storage check] unable to read account count:", error.message);
 }
@@ -950,6 +953,12 @@ server.on("upgrade", async (req, socket, head) => {
           );
         demand(allowedDmCall || allowedVoiceRoom,"Nemaš pristup ovom pozivu.",403);
         if (b.type === "voice") {
+          // Get TURN credentials BEFORE joining the peer room. Otherwise an
+          // incoming offer may arrive before this client has its ICE servers.
+          const resolvedIce = await resolveIce(allowedDmCall);
+          if (s.readyState !== 1) return;
+          if (allowedDmCall)
+            demand(dmCalls.authorized(s,r.id),"Poziv je završen.",409);
           await leave();
           const peers = [];
           for (const p of sockets) {
@@ -961,14 +970,8 @@ server.on("upgrade", async (req, socket, head) => {
             JSON.stringify({
               type: "peers",
               peers: peers.map((p) => ({ peer: p.peer, uid: p.uid })),
-              ice: (() => {
-                const configured = JSON.parse(process.env.SFF_ICE || "[]");
-                // Free public STUN improves private calls across common NATs.
-                // Keep the existing voice-channel configuration unchanged.
-                return allowedDmCall && !configured.length
-                  ? [{urls:"stun:stun.l.google.com:19302"}]
-                  : configured;
-              })(),
+              ice: resolvedIce.ice,
+              iceMode: resolvedIce.mode,
             }),
           );
         } else if (b.type === "signal") {
