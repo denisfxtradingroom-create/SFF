@@ -702,9 +702,21 @@ function drawFeed(bottom = true) {
     authoredFeedNodes.set(node, canonical);
     return node;
   });
-  const existing = [...feed.childNodes];
-  if (existing.length !== updated.length || updated.some((node, i) => node !== existing[i]))
-    feed.replaceChildren(...updated);
+  // Insert only new/changed elements. replaceChildren() reattaches ALL existing
+  // media elements, which pauses video and creates a visible blink on Android.
+  let cursor = feed.firstChild;
+  for (const node of updated) {
+    if (cursor === node) {
+      cursor = cursor.nextSibling;
+    } else {
+      feed.insertBefore(node, cursor);
+    }
+  }
+  while (cursor) {
+    const following = cursor.nextSibling;
+    cursor.remove();
+    cursor = following;
+  }
   if (bottom && wasNearBottom) feed.scrollTop = feed.scrollHeight;
 }
 function updateSeen() {
