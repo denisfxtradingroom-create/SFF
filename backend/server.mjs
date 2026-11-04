@@ -1,6 +1,7 @@
 import { rolePolicy } from "./roles.mjs";
 import { extras } from "./extras.mjs";
 import { socialWall } from "./wall.mjs";
+import { resetAccountDataOnce } from "./account-reset-once.mjs";
 import { openDatabase } from "./db.mjs";
 import http from "node:http";
 import { randomBytes, createHash, scrypt, timingSafeEqual } from "node:crypto";
@@ -104,6 +105,7 @@ const extra = await extras({
   sockets,
 });
 const wall = await socialWall({db,one,all,run,insert,demand,blocked,limit,push});
+await resetAccountDataOnce(db, process.env.SFF_RESET_ALL_ACCOUNTS_ONCE || "");
 // Show only aggregate counts: no usernames, addresses, passwords or tokens.
 // Render startup diagnostics establish whether a reset affected the database
 // to which the LIVE app is actually connected.
