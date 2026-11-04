@@ -177,7 +177,15 @@ function gate(reg = false) {
       reg ? "Napravi nalog" : "Prijavi se",
     ) +
     btn("switch", reg ? "Već imam nalog" : "Napravi novi nalog") +
-    (!reg && mailEnabled ? btn("forgot", "Zaboravljena lozinka") : "") +
+    (!reg
+      ? '<div class="sffRecoveryActions">' +
+          btn("forgot", "Zaboravljena lozinka") +
+          btn("recoverUsername", "Zaboravljeno korisničko ime") +
+        '</div>' +
+        (!mailEnabled
+          ? '<p class="muted sffRecoveryHint">Oporavak preko e-pošte biće dostupan kada SFF uključi slanje mejlova.</p>'
+          : '')
+      : "") +
     signature + "</section></div>";
 }
 function verificationGate(message = "Poslali smo kod na tvoju email adresu.") {
@@ -777,11 +785,31 @@ async function act(a, id) {
         "Sačuvaj",
       ),
     );
-  if (a === "forgot")
+  if (a === "forgot" || a === "recoverUsername") {
+    // Recheck capability when initial loading has not yet finished.
+    if (!mailEnabled) {
+      const capabilities = await api("capabilities");
+      mailEnabled = Boolean(capabilities.mail);
+    }
+    if (!mailEnabled)
+      return modal(
+        "Oporavak SFF naloga",
+        '<p class="muted">Slanje mejlova još nije uključeno na SFF serveru. ' +
+        'Oporavak preko e-pošte biće dostupan kada administrator poveže mejl servis.</p>',
+      );
+    if (a === "forgot")
+      return modal(
+        "Zaboravljena lozinka",
+        '<p class="muted">Unesi e-poštu naloga. Poslaćemo jednokratni kod koji važi 15 minuta.</p>' +
+        form("forgot", field("email", "E-pošta naloga", "", "email"), "Pošalji kod"),
+      );
     return modal(
-      "Obnova lozinke",
-      form("forgot", field("email", "E-pošta", "", "email"), "Pošalji kod"),
+      "Zaboravljeno korisničko ime",
+      '<p class="muted">Unesi e-poštu kojom je nalog registrovan. ' +
+      'Ako postoji nalog sa tom adresom, poslaćemo njegovo korisničko ime.</p>' +
+      form("recoverUsername", field("email", "E-pošta naloga", "", "email"), "Pošalji korisničko ime"),
     );
+  }
   if (a === "verifyResend") {
     await api("verifySend");
     note("Novi kod je poslat.");
@@ -1145,17 +1173,24 @@ document.addEventListener("submit", async (e) => {
           "reset",
           field("email", "E-pošta", b.email, "email") +
             field("code", "Jednokratni kod") +
-            field("password", "Nova lozinka", "", "password"),
+            field("password", "Nova lozinka · najmanje 8 znakova", "", "password") +
+            field("passwordConfirm", "Potvrdi novu lozinku", "", "password"),
           "Promeni lozinku",
         ),
       );
+      return;
+    }
+    if (a === "recoverUsername") {
+      await api(a, b);
+      dlg.close();
+      note("Ako nalog postoji, korisničko ime će stići na registrovanu e-poštu.");
       return;
     }
     if (a === "reset") {
       await api(a, b);
       dlg.close();
       gate();
-      note("Lozinka je promenjena.");
+      note("Lozinka je promenjena. Sve prethodne prijave su odjavljene.");
       return;
     }
     if (["newRole", "assignRole", "override"].includes(a)) {
