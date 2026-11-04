@@ -1,0 +1,21 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const read = (p) => readFileSync(new URL("../" + p, import.meta.url), "utf8");
+const app = read("client/app.js");
+const css = read("client/ambient-theme.css");
+const server = read("backend/server.mjs");
+const extra = read("backend/extras.mjs");
+
+assert(app.includes('btn("forgot", "Zaboravljena lozinka")'));
+assert(app.includes('btn("recoverUsername", "Zaboravljeno korisničko ime")'));
+assert(!app.includes('!reg && mailEnabled ? btn("forgot"'));
+assert(app.includes('data-form="') || app.includes('const form ='));
+assert(app.includes('form("recoverUsername"'));
+assert(app.includes('field("passwordConfirm", "Potvrdi novu lozinku"'));
+assert(css.includes(".sffRecoveryActions"));
+assert(css.includes("@media (max-width: 380px)"));
+assert(server.includes('"recoverUsername"].includes('));
+assert(extra.includes('if (a === "recoverUsername")'));
+assert(extra.includes('return { message: "Ako nalog postoji'));
+assert(extra.includes('const requireEmail = () => process.env.SFF_REQUIRE_VERIFIED_EMAIL === "1";'));
+console.log("SFF recovery UI: both options visible before login, compatible API and responsive layout.");

@@ -282,3 +282,34 @@
 @media (prefers-reduced-motion: reduce) {
   .shell .side .list .item { transition: none; }
 }
+
+
+/* Account recovery must remain discoverable without crowding the login page. */
+.gateform .sffRecoveryActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+.gateform .sffRecoveryActions button {
+  min-height: 42px;
+  border-color: rgba(222, 123, 149, .28);
+  background: rgba(114, 49, 72, .17);
+  color: #ffbcca;
+  line-height: 1.35;
+  font-size: 12px;
+  text-align: center;
+  padding: 9px 8px;
+}
+.gateform .sffRecoveryActions button:hover {
+  background: rgba(148, 55, 84, .29);
+}
+.gateform .sffRecoveryHint {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #af99a5;
+}
+@media (max-width: 380px) {
+  .gateform .sffRecoveryActions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
