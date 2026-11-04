@@ -488,7 +488,8 @@ function render() {
         btn("pins", pins ? "Sve poruke" : "Igle") +
         btn("alerts", "Zvono") +
         (r.kind === "dm"
-          ? btn("callAudio", "☎ Poziv") + btn("callVideo", "▣ Video")
+          ? btn("callAudio", "☎ Poziv") + btn("callVideo", "▣ Video") +
+            btn("callFree", "↗ Rezervni poziv")
           : "") +
         (sp && sp.role !== "Member" ? btn("category", "Kategorija") : "")
       : "") +
@@ -1068,6 +1069,26 @@ async function act(a, id) {
   if (a.startsWith("voice-")) {
     if (a === "voice-leave" && dmCall) return endDmCall(true);
     return voiceAction(a.slice(6), dmCall?.room || room);
+  }
+  if (a === "callFree") {
+    // Alternative if direct WebRTC cannot connect through restrictive networks.
+    // The invite is a normal private chat message; no paid TURN or database polling.
+    if (current()?.kind !== "dm") return;
+    const random = crypto.getRandomValues(new Uint8Array(16));
+    const slug = Array.from(random, b => b.toString(16).padStart(2, "0")).join("");
+    const link = "https://meet.jit.si/SFF-" + slug;
+    await api("post", {
+      room,
+      body: "Poziv preko besplatnog Jitsi servisa: " + link
+    });
+    modal("Rezervni audio/video poziv",
+      "<p>Link je poslat u ovaj privatni razgovor. Oboje otvorite isti link u Chrome/Edge pregledaču.</p>" +
+      '<p><a href="' + link + '" target="_blank" rel="noopener noreferrer">' +
+        esc(link) + "</a></p>" +
+      "<p>Domaćin mora besplatno da se prijavi na Jitsi. Poziv se odvija preko spoljnog servisa, " +
+      "ne preko SFF servera. Ovu opciju koristi samo ako ugrađeni poziv ne radi.</p>");
+    if (socket?.readyState !== 1) await historyLoad();
+    return;
   }
   if (a === "callAudio" || a === "callVideo") {
     if (current()?.kind !== "dm" || dmCall) return;
