@@ -26,19 +26,11 @@ export async function extras({
  CREATE TABLE IF NOT EXISTS chat_deletions(uid INTEGER, room INTEGER REFERENCES rooms ON DELETE CASCADE, deleted_through INTEGER DEFAULT 0, time INTEGER, PRIMARY KEY(uid,room));`);
 
   const configured = () => Boolean(process.env.RESEND_API_KEY && process.env.SFF_MAIL_FROM);
-  // A real sender automatically enables verification even when an older
-  // Render deployment still has SFF_REQUIRE_VERIFIED_EMAIL=0.
-  const requireEmail = () => configured() || process.env.SFF_REQUIRE_VERIFIED_EMAIL === "1";
+  // Recovery mail availability must not unexpectedly lock existing accounts.
+  // Verification is a separate, explicit production policy.
+  const requireEmail = () => process.env.SFF_REQUIRE_VERIFIED_EMAIL === "1";
 
-  async function sendCode(uid, email, kind) {
-    const token = randomBytes(18).toString("hex");
-    await run(
-      "insert or replace into challenges values(?,?,?,?)",
-      uid,
-      kind,
-      hash(token),
-      Date.now() + 900000,
-    );
+  async function sendMail(email, subject, content) {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       signal: AbortSignal.timeout(12000),
@@ -49,11 +41,37 @@ export async function extras({
       body: JSON.stringify({
         from: process.env.SFF_MAIL_FROM,
         to: [email],
-        subject: kind === "reset" ? "SFF · Obnova lozinke" : "SFF · Potvrda email adrese",
-        text: "Tvoj jednokratni kod je " + token + ". Važi 15 minuta.",
+        subject,
+        text: content,
       }),
     });
     demand(response.ok, "Slanje pošte nije uspelo.", 503);
+  }
+
+  async function sendCode(uid, email, kind) {
+    const token = randomBytes(18).toString("hex");
+    await run(
+      "insert or replace into challenges values(?,?,?,?)",
+      uid,
+      kind,
+      hash(token),
+      Date.now() + 900000,
+    );
+    await sendMail(
+      email,
+      kind === "reset" ? "SFF · Obnova lozinke" : "SFF · Potvrda e-pošte",
+      "Tvoj jednokratni SFF kod je " + token +
+      ". Važi 15 minuta. Ako nisi tražio ovaj kod, ignoriši poruku.",
+    );
+  }
+
+  async function sendUsernameReminder(email, username) {
+    await sendMail(
+      email,
+      "SFF · Podsetnik za korisničko ime",
+      "Korisničko ime tvog SFF naloga je @" + username +
+      ". Prijavi se u SFF koristeći to ime. Ako nisi tražio ovaj podsetnik, ignoriši poruku.",
+    );
   }
 
   const options = async (u) => ({
@@ -133,6 +151,28 @@ export async function extras({
   async function handle(a, b, u, ip) {
     if (a === "capabilities") return { mail: configured() };
 
+    if (a === "recoverUsername") {
+      demand(configured(), "Oporavak naloga preko e-pošte trenutno nije aktivan.", 503);
+      limit("mail:" + ip, 15);
+      const email = str(b.email, 160).toLowerCase();
+      demand(/^\S+@\S+\.\S+$/.test(email), "Unesi ispravnu e-poštu.", 400);
+      const who = await one(
+        "select id,email,username from users where email=?",
+        email,
+      );
+      if (who) {
+        limit("send:" + who.id, 3);
+        try {
+          await sendUsernameReminder(who.email, who.username);
+        } catch (error) {
+          // Never reveal whether this address belongs to a user by
+          // returning a different HTTP status for an email provider error.
+          console.warn("[SFF recovery] Username reminder delivery failed:", error.message);
+        }
+      }
+      return { message: "Ako nalog postoji, korisničko ime biće poslato na e-poštu." };
+    }
+
     if (["forgot", "reset", "verifySend", "verifyCode"].includes(a)) {
       demand(configured(), "Administrator nije povezao email servis.", 503);
       limit("mail:" + ip, 15);
@@ -168,6 +208,10 @@ export async function extras({
           typeof b.password === "string" && b.password.length >= 8 && b.password.length <= 128,
           "Lozinka mora imati 8–128 znakova.",
           400,
+        );
+        demand(
+          b.passwordConfirm === undefined || b.password === b.passwordConfirm,
+          "Nove lozinke se ne podudaraju.", 400,
         );
         password = salt + "." + (await derive(b.password, salt, 64)).toString("hex");
       }
