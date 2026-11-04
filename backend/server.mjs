@@ -2,6 +2,7 @@ import { rolePolicy } from "./roles.mjs";
 import { extras } from "./extras.mjs";
 import { socialWall } from "./wall.mjs";
 import { openDatabase } from "./db.mjs";
+import { pruneExpiredContent, expiryCutoff, isTimedMedia } from "./retention.mjs";
 import http from "node:http";
 import { randomBytes, createHash, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
@@ -104,6 +105,18 @@ const extra = await extras({
   sockets,
 });
 const wall = await socialWall({db,one,all,run,insert,demand,blocked,limit,push});
+// Clean on boot and while the service is running; public endpoints independently
+// reject expired content even if the scheduled cleanup has not run yet.
+async function pruneContent() {
+  const { media, posts } = await pruneExpiredContent(db);
+  if (media) await push({ type: "state" }, () => true);
+  if (posts) await push({ type: "wall_changed" }, () => true);
+}
+try { await pruneContent(); }
+catch (error) { console.error("SFF retention startup:", error); }
+setInterval(() => {
+  void pruneContent().catch((error) => console.error("SFF retention:", error));
+}, 60_000).unref();
 function auth(req) {
   return (req.headers.cookie || "").match(/(?:^|; *)sff=([a-f0-9]{64})(?:;|$)/)?.[1];
 }
@@ -755,8 +768,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (path.startsWith("/media/")) {
       const id = Number(path.slice(7)),
-        m = await one("select room,file,mime from messages where id=?", id);
-      demand(u && m?.file && (await roomFor(m.room, u)));
+        m = await one("select room,file,mime,time from messages where id=?", id);
+      demand(u && m?.file && (!isTimedMedia(m.mime) || m.time > expiryCutoff()) && (await roomFor(m.room, u)));
       res.setHeader("Content-Type", m.mime);
       res.setHeader(
         "Content-Disposition",
