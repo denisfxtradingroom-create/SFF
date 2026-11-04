@@ -270,7 +270,8 @@
       button.dataset.sffHome = "1";
       button.title = "Početna";
       button.innerHTML = '<img src="/mark.svg" alt=""><small>Početna</small>';
-      mobile.appendChild(button);
+      // Put the main destination first; preserve all existing handlers and tabs.
+      mobile.prepend(button);
     }
     if (!identity && !gettingIdentity) userId().then(updateCenterBadge).catch(() => {});
     else updateCenterBadge();
