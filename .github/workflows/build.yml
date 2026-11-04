@@ -23,11 +23,17 @@ jobs:
         run: npm test
       - name: Build Windows installer
         shell: pwsh
-        run: .\windows\build.ps1 -Out "$PWD\SFF-Setup.exe" -ServerUrl $env:SFF_PUBLIC_URL
+        run: .\windows\build.ps1 -Out "$PWD\SFF-Setup.exe" -PortableOut "$PWD\SFF-Windows-Portable.zip" -ServerUrl $env:SFF_PUBLIC_URL
       - uses: actions/upload-artifact@v4
         with:
           name: SFF-Windows
           path: SFF-Setup.exe
+          retention-days: 30
+      - name: Publish portable Windows app (no installer, no self-extract)
+        uses: actions/upload-artifact@v4
+        with:
+          name: SFF-Windows-Portable
+          path: SFF-Windows-Portable.zip
           retention-days: 30
 
   android:
