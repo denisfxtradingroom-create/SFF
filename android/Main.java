@@ -10,8 +10,23 @@ import android.view.*;
 import android.webkit.*;
 import android.widget.*;
 import java.util.*;
+import java.lang.ref.WeakReference;
+import org.json.JSONObject;
 
 public class Main extends Activity {
+  static WeakReference<Main> current = new WeakReference<>(null);
+  static final String PUSH_REGISTER_ACTION = "app.sff.signal.REGISTER_PUSH";
+  // Only an authenticated page on our own HTTPS origin receives the token.
+  public static void deliverPushToken(String token) {
+    final Main activity = current.get();
+    if (activity == null || activity.destroyed || token == null || token.isEmpty()) return;
+    activity.runOnUiThread(() -> {
+      if (activity.web == null || !activity.mainPageLoaded ||
+          !activity.same(Uri.parse(activity.web.getUrl() == null ? "" : activity.web.getUrl())))
+        return;
+      activity.web.evaluateJavascript("window.SFFOnPushToken?.(" + JSONObject.quote(token) + ")", null);
+    });
+  }
   static final String DEFAULT_ORIGIN = "__SFF_SERVER_URL__";
   static final long[] RETRY_DELAYS = {1500, 3000, 5000, 8000, 12000, 20000, 30000};
 
@@ -33,6 +48,15 @@ public class Main extends Activity {
   ConnectivityManager.NetworkCallback networkCallback;
 
   public class Notices {
+    @JavascriptInterface public void registerPush() {
+      runOnUiThread(() -> {
+        if (web == null || !mainPageLoaded ||
+            !same(Uri.parse(web.getUrl() == null ? "" : web.getUrl()))) return;
+        // Firebase implementation lives only in the optional Gradle/Firebase APK.
+        // Existing non-Firebase builds have no receiver and continue normally.
+        sendBroadcast(new Intent(PUSH_REGISTER_ACTION).setPackage(getPackageName()));
+      });
+    }
     @JavascriptInterface public void ask() {
       runOnUiThread(() -> {
         if (Build.VERSION.SDK_INT >= 33)
@@ -156,6 +180,18 @@ public class Main extends Activity {
 
   @Override public void onCreate(Bundle b) {
     super.onCreate(b);
+    current = new WeakReference<>(this);
+    if (Build.VERSION.SDK_INT >= 26) {
+      NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+      NotificationChannel channel=new NotificationChannel(
+        "sff_incoming_calls","Dolazni SFF pozivi",NotificationManager.IMPORTANCE_HIGH);
+      channel.setDescription("Zvonjenje kada vas prijatelj poziva preko SFF aplikacije");
+      channel.enableVibration(true);
+      channel.setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE),
+        new android.media.AudioAttributes.Builder().setUsage(
+          android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE).build());
+      manager.createNotificationChannel(channel);
+    }
     connectivity = (ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
 
     shell = new LinearLayout(this);
@@ -360,6 +396,7 @@ public class Main extends Activity {
 
   @Override protected void onDestroy() {
     destroyed = true;
+    if (current.get() == this) current.clear();
     cancelRetry();
     try { if (connectivity != null && networkCallback != null) connectivity.unregisterNetworkCallback(networkCallback); } catch (Exception ignored) {}
     if (web != null) {
