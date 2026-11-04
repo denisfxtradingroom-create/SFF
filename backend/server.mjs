@@ -191,6 +191,14 @@ async function state(u) {
     u, ...roomIds
   ) : [];
   const dmNames = new Map(dmRows.map((row) => [row.room, row.names]));
+  // One read for all visible private conversations, not one per message.
+  const seenRows = roomIds.length ? await all(
+    "select d.room,max(d.last) last from reads d " +
+    "join rooms r on r.id=d.room and r.kind='dm' " +
+    "where d.uid!=? and d.room in (" + markers + ") group by d.room",
+    u, ...roomIds
+  ) : [];
+  const dmSeen = Object.fromEntries(seenRows.map((row) => [row.room, Number(row.last)]));
   const rooms = [];
   for (const x of ids) {
     const r = await roomFor(x.id, u);
@@ -223,6 +231,7 @@ async function state(u) {
   return {
     ...(await extra.options(u)),
     online: onlineIds,
+    dmSeen,
     art: await all(
       "select scope,id,slot from artwork where (scope='user' and (id=? or id in(select uid from members where space in(select space from members where uid=?)) or id in(select uid from participants where room in(select room from participants where uid=?)) or id in(select case when sender=? then target else sender end from friends where accepted=1 and (sender=? or target=?)))) or (scope='space' and id in(select space from members where uid=?))",
       u,
@@ -601,6 +610,10 @@ async function action(a, b, u, res, req) {
         r.id, u, through,
       );
       await push({ type: "state" }, (s) => s.uid === u);
+      if (r.kind === "dm") {
+        await push({type:"read_receipt",room:r.id,uid:u,last:through},
+          (s)=>s.uid!==u && roomFor(r.id,s.uid));
+      }
     }
     return { last: Math.max(through, Number(previous?.last || 0)) };
   }
