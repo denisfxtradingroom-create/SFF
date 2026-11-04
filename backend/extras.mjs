@@ -37,7 +37,7 @@ export async function extras({
     if (brevoKey) {
       // Brevo supports free-address senders; it may rewrite their From domain.
       const from = process.env.SFF_MAIL_FROM || "";
-      const match = from.match(/^\\s*(.*?)\\s*<([^<>]+)>\\s*$/);
+      const match = from.match(/^\s*(.*?)\s*<([^<>]+)>\s*$/);
       const sender = match
         ? { name: match[1].trim() || "SFF", email: match[2].trim() }
         : { name: "SFF", email: from.trim() };
