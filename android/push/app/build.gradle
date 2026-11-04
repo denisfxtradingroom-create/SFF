@@ -1,0 +1,46 @@
+plugins {
+  id 'com.android.application'
+  id 'com.google.gms.google-services'
+}
+
+android {
+  namespace 'app.sff.signal'
+  compileSdk 36
+
+  defaultConfig {
+    applicationId 'app.sff.signal'
+    minSdk 28
+    targetSdk 36
+    versionCode 5
+    versionName '0.8.7'
+  }
+
+  sourceSets {
+    main {
+      java.srcDirs += ["$buildDir/generated/sff-activity"]
+      res.srcDirs += ['../../res']
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_1_8
+    targetCompatibility JavaVersion.VERSION_1_8
+  }
+}
+
+tasks.register('prepareSffMain', Copy) {
+  from file('../../Main.java')
+  into layout.buildDirectory.dir('generated/sff-activity/app/sff/signal')
+  filter { String line ->
+    line.replace('__SFF_SERVER_URL__', 'https://sff-signal-api.onrender.com')
+  }
+}
+
+tasks.named('preBuild') {
+  dependsOn tasks.named('prepareSffMain')
+}
+
+dependencies {
+  implementation platform('com.google.firebase:firebase-bom:35.1.0')
+  implementation 'com.google.firebase:firebase-messaging'
+}
