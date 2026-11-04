@@ -17,7 +17,8 @@ let active = null,
   speaker = "",
   generation = 0;
 const peers = new Map(),
-  pending = new Map();
+  pending = new Map(),
+  signalQueues = new Map();
 const button = (a, t) => '<button data-a="voice-' + a + '">' + t + "</button>";
 // Preserve media elements across track, volume and connection updates.
 // Rebuilding a playing <video> discards its playback state on WebView/Android.
@@ -153,78 +154,120 @@ export function voice() {
   mount();
 }
 function connection(peer, uid, initiator) {
-  const pc = new RTCPeerConnection({ iceServers: ice }),
-    media = new MediaStream();
-  const state = { pc, media, uid, volume: 1 };
+  const pc = new RTCPeerConnection({ iceServers: ice });
+  const media = new MediaStream();
+  const state = { pc, media, uid, volume: 1, initiator, restarts: 0 };
   peers.set(peer, state);
-  pc.onicecandidate = (e) => {
-    if (e.candidate && active)
+  pc.onconnectionstatechange = () => mount();
+  pc.oniceconnectionstatechange = () => {
+    mount();
+    // One ICE restart may recover from temporary network changes.
+    // If no candidate pair works, TURN is still required for some networks.
+    if (pc.iceConnectionState !== "failed" || !initiator ||
+        state.restarts >= 1 || pc.signalingState !== "stable" || !active) return;
+    state.restarts++;
+    void (async () => {
+      await pc.setLocalDescription(await pc.createOffer({ iceRestart: true }));
       sendVoice({
-        type: "signal",
-        room: active,
-        peer,
+        type: "signal", room: active, peer,
+        data: { description: pc.localDescription },
+      });
+    })().catch(() => mount());
+  };
+  pc.onicecandidate = (e) => {
+    if (!e.candidate || !active || pc.signalingState === "closed") return;
+    try {
+      sendVoice({
+        type: "signal", room: active, peer,
         data: { candidate: e.candidate },
       });
+    } catch { /* A closed call must never resurrect the WebSocket. */ }
   };
   pc.ontrack = (e) => {
-    media.addTrack(e.track);
+    if (!media.getTracks().includes(e.track)) media.addTrack(e.track);
     e.track.onunmute = mount;
+    e.track.onended = mount;
     mount();
   };
   pc.addTrack(stream.getAudioTracks()[0], stream);
   if (initiator) {
     state.sender = pc.addTransceiver("video", { direction: "sendrecv" }).sender;
-    if (video) state.sender.replaceTrack(video);
+    if (video) void state.sender.replaceTrack(video);
   }
+  mount();
   return state;
+}
+async function applySignal(e) {
+  if (!active) return;
+  const d = e.data;
+  if (!d || (!d.candidate && !d.description)) return;
+  let p = peers.get(e.peer);
+  if (d.candidate) {
+    if (p?.pc.remoteDescription) await p.pc.addIceCandidate(d.candidate);
+    else pending.set(e.peer, [...(pending.get(e.peer) || []), d.candidate]);
+    return;
+  }
+  if (!p) p = connection(e.peer, e.uid, false);
+  const pc = p.pc;
+  if (pc.signalingState === "closed") return;
+  // Socket events are asynchronous; serializing per peer prevents candidates
+  // arriving in the middle of setRemoteDescription().
+  await pc.setRemoteDescription(d.description);
+  for (const candidate of pending.get(e.peer) || [])
+    await pc.addIceCandidate(candidate);
+  pending.delete(e.peer);
+  if (d.description.type === "offer") {
+    const transceiver = pc.getTransceivers().find(
+      (t) => t.receiver.track.kind === "video"
+    );
+    if (transceiver) {
+      transceiver.direction = "sendrecv";
+      p.sender = transceiver.sender;
+      await p.sender.replaceTrack(video);
+    }
+    await pc.setLocalDescription(await pc.createAnswer());
+    sendVoice({
+      type: "signal", room: active, peer: e.peer,
+      data: { description: pc.localDescription },
+    });
+  }
+  mount();
 }
 export async function voiceEvent(e) {
   if (!["peers", "signal", "left"].includes(e.type)) return false;
   if (!active) return true;
-  const signal = (peer, data) =>
-    sendVoice({ type: "signal", room: active, peer, data });
   if (e.type === "peers") {
-    ice = e.ice;
-    for (const p of e.peers) {
-      const { pc } = connection(p.peer, p.uid, true);
+    ice = Array.isArray(e.ice) ? e.ice : [];
+    for (const other of e.peers) {
+      const { pc } = connection(other.peer, other.uid, true);
       await pc.setLocalDescription(await pc.createOffer());
-      signal(p.peer, { description: pc.localDescription });
+      sendVoice({
+        type: "signal", room: active, peer: other.peer,
+        data: { description: pc.localDescription },
+      });
     }
-  }
-  if (e.type === "left") {
+  } else if (e.type === "left") {
     peers.get(e.peer)?.pc.close();
     peers.delete(e.peer);
     pending.delete(e.peer);
+    signalQueues.delete(e.peer);
     mount();
-  }
-  if (e.type === "signal") {
-    const d = e.data;
-    let p = peers.get(e.peer);
-    if (d.candidate) {
-      if (p?.pc.remoteDescription) await p.pc.addIceCandidate(d.candidate);
-      else pending.set(e.peer, [...(pending.get(e.peer) || []), d.candidate]);
-      return true;
+  } else if (e.type === "signal") {
+    const currentGeneration = generation;
+    const previous = signalQueues.get(e.peer) || Promise.resolve();
+    const next = previous.catch(() => {}).then(async () => {
+      if (generation === currentGeneration && active) await applySignal(e);
+    });
+    signalQueues.set(e.peer, next);
+    try {
+      await next;
+    } finally {
+      if (signalQueues.get(e.peer) === next) signalQueues.delete(e.peer);
     }
-    if (!p) p = connection(e.peer, e.uid, false);
-    await p.pc.setRemoteDescription(d.description);
-    for (const c of pending.get(e.peer) || []) await p.pc.addIceCandidate(c);
-    pending.delete(e.peer);
-    if (d.description.type === "offer") {
-      p.sender = p.pc
-        .getTransceivers()
-        .find((t) => t.receiver.track.kind === "video")?.sender;
-      if (p.sender) {
-        p.pc.getTransceivers().find((t) => t.sender === p.sender).direction =
-          "sendrecv";
-        await p.sender.replaceTrack(video);
-      }
-      await p.pc.setLocalDescription(await p.pc.createAnswer());
-      signal(e.peer, { description: p.pc.localDescription });
-    }
-    mount();
   }
   return true;
 }
+
 export function voiceLeave() {
   generation++;
   stopMeters();
@@ -238,6 +281,7 @@ export function voiceLeave() {
   for (const p of peers.values()) p.pc.close();
   peers.clear();
   pending.clear();
+  signalQueues.clear();
   stream?.getTracks().forEach((t) => t.stop());
   video?.stop();
   video = stream = null;
