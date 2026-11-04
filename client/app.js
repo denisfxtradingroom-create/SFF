@@ -88,10 +88,11 @@ const modal = (title, html) => {
   if (!dlg.open) dlg.showModal();
 };
 let mailEnabled = false;
+let authGateTouched = false;
 api("capabilities")
   .then((c) => {
-    mailEnabled = c.mail;
-    if (!data && mailEnabled) gate(registered);
+    // Capability detection must NEVER redraw an in-progress auth form.
+    mailEnabled = Boolean(c.mail);
   })
   .catch(() => {});
 const hasArt = (scope, id, slot) =>
@@ -849,7 +850,10 @@ async function act(a, id) {
       ),
     );
   if (a === "close") return dlg.close();
-  if (a === "switch") return gate(!registered);
+  if (a === "switch") {
+    authGateTouched = true;
+    return gate(!registered);
+  }
   if (a === "spacesPage" || a === "membersPage" || a === "chatPage")
     return navigate(
       { spacesPage: "spaces", membersPage: "members", chatPage: "chat" }[a],
@@ -1113,6 +1117,8 @@ document.addEventListener("submit", async (e) => {
     const a = f.dataset.form,
       b = Object.fromEntries(new FormData(f));
     if (a === "login" || a === "register") {
+      // Ignore delayed startup state responses once authentication was submitted.
+      authGateTouched = true;
       b.remember = Boolean(f.querySelector('[name="remember"]')?.checked);
       data = await api(a, b);
       if (needsVerification()) {
@@ -1302,8 +1308,12 @@ document.addEventListener("visibilitychange", () => {
 
 api("state")
   .then(async (d) => {
+    if (authGateTouched || data) return;
     data = d;
     if (needsVerification()) return verificationGate();
     await start();
   })
-  .catch(() => gate());
+  .catch(() => {
+    // A late unauthenticated bootstrap response must not erase a signup form.
+    if (!authGateTouched && !data) gate();
+  });
