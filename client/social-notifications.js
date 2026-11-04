@@ -3,7 +3,6 @@
   "use strict";
   const NativeSocket = window.WebSocket;
   const config = {
-    messageNotice: "1",
     friendNotice: "1",
     sounds: "1",
     quiet: "0",
@@ -48,12 +47,18 @@
   }
   function historyKey(id) { return "sff.social.history.v2." + id; }
   function readKey(id) { return "sff.social.lastRead.v2." + id; }
+  const socialKinds = new Set(["friend", "like", "comment", "post"]);
   function history(id) {
     try {
       const rows = JSON.parse(localStorage.getItem(historyKey(id)) || "[]");
-      return Array.isArray(rows) ? rows.filter((r) =>
-        r && typeof r.title === "string" && typeof r.kind === "string" &&
-        Number.isSafeInteger(r.id)).slice(0, maxEntries) : [];
+      if (!Array.isArray(rows)) return [];
+      const social = rows.filter((r) =>
+        r && typeof r.title === "string" && socialKinds.has(r.kind) &&
+        Number.isSafeInteger(r.id)).slice(0, maxEntries);
+      // Remove OLD chat previews from this device's bell history as well.
+      if (social.length !== rows.length)
+        localStorage.setItem(historyKey(id), JSON.stringify(social));
+      return social;
     } catch { return []; }
   }
   async function saveEvent(kind, title, subtitle) {
@@ -115,9 +120,7 @@
     }
   }
   function systemNotify(title, subtitle, kind) {
-    if (enabled("quiet") ||
-      (kind === "message" && !enabled("messageNotice")) ||
-      (kind !== "message" && !enabled("friendNotice"))) return;
+    if (enabled("quiet") || !enabled("friendNotice")) return;
     if (!document.hidden) return;
     const body = enabled("showPreview") ? subtitle : "Imaš novo obaveštenje u SFF-u.";
     if (window.SFFAndroid?.show) {
@@ -134,8 +137,7 @@
   }
   function banner(kind, title, subtitle) {
     if (document.hidden || !enabled("banners") || enabled("quiet")) return;
-    if ((kind === "message" && !enabled("messageNotice")) ||
-        (kind !== "message" && !enabled("friendNotice"))) return;
+    if (!enabled("friendNotice")) return;
     currentToast?.remove();
     clearTimeout(toastTimer);
     const node = document.createElement("button");
@@ -156,9 +158,8 @@
     toastTimer = setTimeout(() => { node.remove(); currentToast = null; }, 7200);
   }
   function notify(kind, title, subtitle) {
-    if (enabled("quiet")) return;
-    if ((kind === "message" && !enabled("messageNotice")) ||
-        (kind !== "message" && !enabled("friendNotice"))) return;
+    if (enabled("quiet") || !socialKinds.has(kind)) return;
+    if (!enabled("friendNotice")) return;
     saveEvent(kind, title, subtitle).catch(() => {});
     systemNotify(title, subtitle, kind);
     banner(kind, title, subtitle);
@@ -167,10 +168,16 @@
   function receive(event) {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
-    if (message.type === "message" && message.notify === true) {
-      const body = message.body?.trim() || message.file || "Poslat je prilog.";
-      notify("message", String(message.name || "Nova poruka"),
-        String(body).slice(0, 120));
+    // Chat messages belong ONLY to Razgovori and the existing unread badges.
+    if (message.type === "social_activity") {
+      const name = String(message.name || message.username || "Prijatelj").slice(0, 70);
+      const descriptions = {
+        like: ["Novi lajk", name + " je označio/la da mu/joj se sviđa tvoja objava."],
+        comment: ["Novi komentar", name + " je komentarisao/la tvoju objavu."],
+        post: ["Nova objava", name + " je objavio/la nešto novo na svom zidu."],
+      };
+      if (descriptions[message.kind])
+        notify(message.kind, ...descriptions[message.kind]);
     } else if (message.type === "friend_request") {
       notify("friend", "Zahtev za prijateljstvo",
         String(message.name || message.username || "Korisnik") +
@@ -220,7 +227,7 @@
       '</header><div class="sffSocialHistory">' +
       (rows.length ? rows.map((x) =>
         '<div class="sffSocialEvent"><span class="sffSocialEventIcon">' +
-        (x.kind === "message" ? "✉" : "✦") + '</span><div><b>' + escape(x.title) +
+        ({friend:"✦",like:"♥",comment:"▤",post:"✎"}[x.kind] || "✦") + '</span><div><b>' + escape(x.title) +
         '</b><p>' + escape(x.subtitle) + '</p><small>' +
         new Date(x.at).toLocaleString("sr-RS") +
         '</small></div></div>').join("") :
@@ -310,7 +317,7 @@
       ev.preventDefault();
       const key = ev.target.closest("[data-social-test]").dataset.socialTest;
       audioContext();
-      sound(key === "friend" ? "friend" : "message", true);
+      sound("friend", true);
     }
   }, true);
 
@@ -329,14 +336,13 @@
       '<label><input type="checkbox" data-social-setting="' + name + '" ' +
       checked(name) + '> ' + escape(text) + '</label>';
     return '<div class="sffSocialSettings">' +
-      '<h3>🔔 Poruke i obaveštenja</h3>' +
-      checkbox("messageNotice", "Obaveštenja o novim porukama") +
-      checkbox("friendNotice", "Obaveštenja o zahtevima i prihvatanju prijateljstva") +
+      '<h3>🔔 Društvena obaveštenja</h3>' +
+      checkbox("friendNotice", "Zahtevi, lajkovi, komentari i objave prijatelja") +
       checkbox("banners", "Prikaži obaveštenje unutar aplikacije") +
-      checkbox("showPreview", "Prikaži tekst poruke u obaveštenju") +
+      checkbox("showPreview", "Prikaži detalje društvenog obaveštenja") +
       checkbox("quiet", "Tihi režim (isključi SFF obaveštenja i zvuk)") +
       '<h3>🎵 Zvukovi</h3>' +
-      checkbox("sounds", "Zvuk u aplikaciji kada stigne poruka ili zahtev") +
+      checkbox("sounds", "Zvuk kada stigne društveno obaveštenje") +
       '<label>Melodija' +
       '<select data-social-setting="soundTheme">' +
       [["classic", "SFF klasični"], ["soft", "SFF nežni"], ["digital", "SFF digitalni"]]
@@ -346,9 +352,8 @@
       '<label>Jačina zvuka <span data-social-volume>' + escape(get("volume")) +
       '%</span><input type="range" min="0" max="100" step="5" value="' +
       escape(get("volume")) + '" data-social-setting="volume" ></label>' +
-      '<div class="sffSocialSoundTests"><button type="button" data-social-test="message">' +
-      '▶ Test poruke</button><button type="button" data-social-test="friend">' +
-      '▶ Test zahteva</button></div>' +
+      '<div class="sffSocialSoundTests"><button type="button" data-social-test="friend">' +
+      '▶ Test obaveštenja</button></div>' +
       '<p class="muted">Ova podešavanja važe za ovaj uređaj. Na Androidu zvuk sistemskog ' +
       'obaveštenja dok je aplikacija u pozadini podešava se u Android podešavanjima ' +
       'obaveštenja, a ne preko web stranice. Kada je aplikacija potpuno ugašena, ' +
