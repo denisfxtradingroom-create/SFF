@@ -35,7 +35,7 @@
       }).then(async (response) => {
         if (!response.ok) return null;
         const result = await response.json();
-        return Number(result.me?.id) || null;
+        return result.me?.id && result.me?.username ? String(result.me.id) + ":" + String(result.me.username).toLowerCase() : null;
       }).catch(() => null).finally(() => { gettingIdentity = null; });
     }
     const value = await gettingIdentity;
