@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto";
 
 const sha256 = (token) => createHash("sha256").update(token).digest("hex");
-const tokenPattern = /^[A-Za-z0-9_:\-]+$/;
+const tokenPattern = /^[A-Za-z0-9_.:\-~]+$/;
 let messaging;
 let initPromise;
 
@@ -82,28 +82,29 @@ export async function createPushDevices(db) {
     return rows.map((x) => x.token);
   };
   async function sendCall(uid, details, sendOverride = null) {
+    if (!pushConfigured()) return false;
     const tokens = await list(uid);
-    if (!pushConfigured() || !tokens.length) return false;
+    if (!tokens.length) return false;
     let succeeded = 0;
     const payload = {
-      notification: {
-        title: details.kind === "video" ? "Dolazni SFF video poziv" : "Dolazni SFF poziv",
-        body: (details.name || "Prijatelj") + " te zove.",
-      },
+      // DATA-only FCM: this calls FirebaseMessagingService even in background;
+      // the native app shows the ringtone notification immediately.
       data: {
         type: "call_incoming",
         room: String(details.room),
         kind: details.kind === "video" ? "video" : "audio",
+        created_at: String(Date.now()),
       },
       android: {
         priority: "high",
         ttl: 45000,
-        notification: { channelId: "sff_incoming_calls", sound: "default", tag:"sff-call" },
+        restrictedPackageName: "app.sff.signal",
       },
     };
     let sender;
     try {
-      sender = sendOverride || (await getMessagingClient()).send.bind(await getMessagingClient());
+      const client = sendOverride ? null : await getMessagingClient();
+      sender = sendOverride || client.send.bind(client);
     } catch (error) {
       console.warn("[SFF push] Firebase transport unavailable:",error.message);
       return false;
