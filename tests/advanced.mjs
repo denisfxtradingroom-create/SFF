@@ -59,7 +59,12 @@ try {
     passwordConfirm: "advanced-test-password",
     firstName: "denis", lastName: "Test",
   };
-  await call(invalid, "register", duplicate, 409);
+  // Two different people may legitimately have identical first and last names.
+  const additional = await call(invalid, "register", duplicate);
+  assert.equal(additional.me.username, "newuser");
+  assert.equal(additional.me.name, "denis Test");
+  assert.notEqual(additional.me.id, (await call(A, "state")).me.id);
+  assert.equal((await call(A, "state")).me.name, "denis Test");
   await call(invalid, "register", { ...duplicate, username: "denis",
     firstName: "Another", lastName: "Person" }, 409);
 
@@ -90,7 +95,14 @@ try {
     passwordConfirm: "advanced-test-password",
     firstName: "denis", lastName: "Test",
   }, 409);
-  await call(B, "profile", { name: "denis Test", about: "", status: "Online", custom: "" }, 409);
+  await call(B, "profile", { name: "denis Test", about: "", status: "Online", custom: "" });
+  assert.equal((await call(B, "state")).me.name, "denis Test");
+  assert.equal((await call(A, "state")).me.name, "denis Test");
+  // An email address and @username remain unique even if display names match.
+  await call(account(), "register", {
+    ...duplicate,
+    username: "totallynew", firstName: "Other", lastName: "Person",
+  }, 409);
   const loginBody = JSON.stringify({ username: "denis",
     password: "advanced-test-password", remember: false });
   const temporary = await fetch(origin + "/api/login", {
@@ -179,7 +191,7 @@ try {
     headers: { Cookie: B.cookie },
   })).status, 200);
 
-  console.log("SFF 0.5 advanced tests passed: unique names, remember me, chat delete, profiles, voice MIME/ranges");
+  console.log("SFF advanced tests passed: unique username/email, shared real names, remember me, chat delete, profiles, voice MIME/ranges");
 } finally {
   server?.kill();
 }
