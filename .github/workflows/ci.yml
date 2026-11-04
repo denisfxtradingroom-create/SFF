@@ -24,4 +24,6 @@ jobs:
       - run: node --check client/social-wall.js
       - run: node --check backend/wall.mjs
       - run: node tests/wall.mjs
+      - run: node tests/read-state.mjs
+      - run: node tests/notification-badges.mjs
       - run: npm test
