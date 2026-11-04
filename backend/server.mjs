@@ -164,54 +164,61 @@ async function state(u) {
     u,
     u,
   );
+  // Batch room counters and metadata into one indexed query instead of
+  // fetching last activity, unread count and category separately per room.
+  const roomIds = ids.map((x) => x.id);
+  const markers = roomIds.map(() => "?").join(",");
+  const roomRows = roomIds.length ? await all(
+    "select r.id," +
+    "(select max(m.id) from messages m where m.room=r.id) latest," +
+    "coalesce(d.deleted_through,0) deleted_through," +
+    "(select count(*) from messages m where m.room=r.id and m.uid!=? " +
+    "and m.id>max(coalesce(rd.last,0),coalesce(d.deleted_through,0))) unread," +
+    "coalesce(meta.category,'') category " +
+    "from rooms r " +
+    "left join reads rd on rd.room=r.id and rd.uid=? " +
+    "left join chat_deletions d on d.room=r.id and d.uid=? and r.space is null " +
+    "left join room_meta meta on meta.room=r.id " +
+    "where r.id in (" + markers + ")",
+    u, u, u, ...roomIds
+  ) : [];
+  const roomInfo = new Map(roomRows.map((row) => [row.id, row]));
+  const dmRows = roomIds.length ? await all(
+    "select p.room,group_concat(u.name, ', ') names " +
+    "from participants p join users u on u.id=p.uid " +
+    "join rooms r on r.id=p.room and r.kind='dm' " +
+    "where p.uid!=? and p.room in (" + markers + ") group by p.room",
+    u, ...roomIds
+  ) : [];
+  const dmNames = new Map(dmRows.map((row) => [row.room, row.names]));
   const rooms = [];
   for (const x of ids) {
     const r = await roomFor(x.id, u);
     if (!r) continue;
-    const latest = await one("select max(id) latest from messages where room=?", r.id);
-    const deleted = !r.space
-      ? await one("select deleted_through from chat_deletions where room=? and uid=?", r.id, u)
-      : null;
-    if (deleted && (latest?.latest || 0) <= deleted.deleted_through) continue;
-    let roomName = r.name;
-    if (r.kind === "dm") {
-      const names = await all(
-        "select name from users join participants on users.id=uid where room=? and uid!=?",
-        r.id,
-        u,
-      );
-      roomName = names.map((x) => x.name).join(", ");
-    }
-    const unread = await one(
-      "select count(*) n from messages where room=? and uid!=? and id>max(coalesce((select last from reads where room=? and uid=?),0),?)",
-      r.id,
-      u,
-      r.id,
-      u,
-      deleted?.deleted_through || 0,
-    );
-    const meta = await one("select category from room_meta where room=?", r.id);
+    const info = roomInfo.get(r.id);
+    if (!info) continue;
+    if (!r.space && Number(info.deleted_through) &&
+        Number(info.latest || 0) <= Number(info.deleted_through)) continue;
     rooms.push({
       ...r,
-      lastActivity: latest?.latest || 0,
-      name: roomName,
-      unread: unread?.n || 0,
-      category: meta?.category || "",
+      lastActivity: info.latest || 0,
+      name: r.kind === "dm" ? dmNames.get(r.id) || "" : r.name,
+      unread: info.unread || 0,
+      category: info.category || "",
     });
   }
 
-  const onlineIds = [];
-  for (const id of new Set([...sockets].map((s) => s.uid))) {
-    const user = await one("select id from users where id=? and status!='Invisible'", id);
-    const friend = await one(
-      "select 1 from friends where accepted=1 and ((sender=? and target=?) or (sender=? and target=?))",
-      u,
-      id,
-      id,
-      u,
-    );
-    if (user && friend) onlineIds.push(id);
-  }
+  const activeUserIds = [...new Set([...sockets]
+    .filter((s) => s.readyState === 1).map((s) => s.uid))];
+  const onlineRows = activeUserIds.length ? await all(
+    "select u.id from users u where u.id in (" +
+    activeUserIds.map(() => "?").join(",") + ") " +
+    "and u.status!='Invisible' and exists (" +
+    "select 1 from friends f where f.accepted=1 " +
+    "and ((f.sender=? and f.target=u.id) or (f.target=? and f.sender=u.id)))",
+    ...activeUserIds, u, u
+  ) : [];
+  const onlineIds = onlineRows.map((row) => row.id);
 
   return {
     ...(await extra.options(u)),
