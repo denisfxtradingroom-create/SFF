@@ -28,26 +28,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
-      - name: Provide non-production Firebase config for compile test only
+      - name: Verify Android Firebase project
         run: |
-          cat > android/push/app/google-services.json <<'JSON'
-          {
-            "project_info": {
-              "project_number": "123456789012",
-              "project_id": "sff-compile-only",
-              "storage_bucket": "sff-compile-only.appspot.com"
-            },
-            "client": [{
-              "client_info": {
-                "mobilesdk_app_id": "1:123456789012:android:0123456789abcdef012345",
-                "android_client_info": {"package_name": "app.sff.signal"}
-              },
-              "oauth_client": [],
-              "api_key": [{"current_key": "AIzaSyEXAMPLE000000000000000000000000000"}],
-              "services": {}
-            }],
-            "configuration_version": "1"
-          }
-          JSON
-      - name: Compile FCM Android APK (test only; never publish)
+          python3 - <<'PY'
+          import json
+          d=json.load(open("android/push/app/google-services.json"))
+          assert d["project_info"]["project_id"] == "sff-36587"
+          print("SFF Firebase configuration OK")
+          PY
+      - name: Compile SFF Firebase Android APK
         run: gradle --no-daemon -p android/push :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SFF-Android-Firebase-test
+          path: android/push/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
