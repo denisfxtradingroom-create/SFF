@@ -1,4 +1,5 @@
 /* SFF Pocetna: friends-only posts, server-side authorization. */
+import { retentionCutoff } from "./retention.mjs";
 export async function socialWall({db,one,all,run,insert,demand,blocked,limit,push}) {
   await db.exec([
     "CREATE TABLE IF NOT EXISTS wall_posts(id INTEGER PRIMARY KEY,uid INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,body TEXT NOT NULL DEFAULT '',created INTEGER NOT NULL,image_mime TEXT,image_bytes BLOB)",
@@ -29,7 +30,8 @@ export async function socialWall({db,one,all,run,insert,demand,blocked,limit,pus
   ].join(" ");
   async function item(viewer,id) {
     const p=await one(baseSelect+" where p.id=?",viewer,id);
-    demand(p&&await canSee(viewer,p.uid),"Objava nije dostupna.",404);
+    demand(p && p.created > retentionCutoff() && await canSee(viewer,p.uid),
+      "Objava nije dostupna.",404);
     return p;
   }
   async function feed(viewer,author,before) {
@@ -47,6 +49,7 @@ export async function socialWall({db,one,all,run,insert,demand,blocked,limit,pus
       ].join(" ");
       args.push(viewer,viewer,viewer,viewer,viewer);
     }
+    condition+=" and p.created>?";args.push(retentionCutoff());
     if(before){condition+=" and p.id<?";args.push(before);}
     return await all(baseSelect+" where "+condition+" order by p.id desc limit 16",...args);
   }
