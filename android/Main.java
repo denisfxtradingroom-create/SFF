@@ -52,6 +52,9 @@ public class Main extends Activity {
       runOnUiThread(() -> {
         if (web == null || !mainPageLoaded ||
             !same(Uri.parse(web.getUrl() == null ? "" : web.getUrl()))) return;
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED)
+          requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 35);
         // Firebase implementation lives only in the optional Gradle/Firebase APK.
         // Existing non-Firebase builds have no receiver and continue normally.
         sendBroadcast(new Intent(PUSH_REGISTER_ACTION)
