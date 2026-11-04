@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const path = new URL("../client/voice.js", import.meta.url);
 const source = readFileSync(path, "utf8");
-const syntax = spawnSync(process.execPath,["--check",path.pathname],{encoding:"utf8"});
+const syntax = spawnSync(process.execPath,["--check",fileURLToPath(path)],{encoding:"utf8"});
 assert.equal(syntax.status,0,syntax.stderr);
 assert(source.includes('if (player.srcObject !== media) player.srcObject = media'),
   "Remote MediaStream must be retained between rerenders");
