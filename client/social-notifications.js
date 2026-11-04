@@ -25,6 +25,10 @@
   const maxEntries = 30;
 
   async function userId() {
+    if (typeof window.SFFNotificationIdentity === "function") {
+      identity = window.SFFNotificationIdentity();
+      return identity;
+    }
     if (identity) return identity;
     if (!gettingIdentity) {
       gettingIdentity = fetch("/api/state", {
