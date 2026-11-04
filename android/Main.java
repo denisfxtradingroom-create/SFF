@@ -54,7 +54,8 @@ public class Main extends Activity {
             !same(Uri.parse(web.getUrl() == null ? "" : web.getUrl()))) return;
         // Firebase implementation lives only in the optional Gradle/Firebase APK.
         // Existing non-Firebase builds have no receiver and continue normally.
-        sendBroadcast(new Intent(PUSH_REGISTER_ACTION).setPackage(getPackageName()));
+        sendBroadcast(new Intent(PUSH_REGISTER_ACTION)
+          .setClassName(getPackageName(),getPackageName()+".SffTokenReceiver"));
       });
     }
     @JavascriptInterface public void ask() {
