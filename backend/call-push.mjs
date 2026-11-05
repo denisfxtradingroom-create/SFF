@@ -123,8 +123,8 @@ export async function createPushDevices(db) {
     }
     return succeeded > 0;
   }
-  // Private DM push: metadata only. Never include the message text or session cookie.
-  // The Android notification can offer RemoteInput without revealing a preview.
+  // Private DM push with an optional message preview, as requested by users.
+  // Never include session cookies, passwords or other credentials in FCM data.
   async function sendMessage(uid, details, sendOverride = null) {
     if (!pushConfigured()) return false;
     const room = Number(details?.room);
@@ -139,7 +139,9 @@ export async function createPushDevices(db) {
         type: "dm_message",
         room: String(room),
         message_id: String(messageId),
-        sender: String(details.sender || "Korisnik").slice(0, 80),
+        sender: String(details.sender || "Korisnik").replace(/[\r\n\t]/g, " ").slice(0, 80),
+        body: String(details.body || (details.hasFile ? "Poslat je prilog." : "Nova poruka"))
+          .replace(/[\r\n\t]/g, " ").slice(0, 240),
       },
       android: {
         priority: "high",
