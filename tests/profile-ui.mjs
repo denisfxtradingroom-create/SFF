@@ -49,12 +49,23 @@ assert(css.includes(".sffProfileDialog .sffV5AvatarClip") &&
 assert(css.includes(".sffProfileDialog .sffV5AvatarClip > img") &&
   css.includes("object-fit: cover"),
   "Tall portraits must never expand the displayed avatar");
+const app=read("client/app.js");
 const profile=read("client/sff-next.js");
+// The separate modern profile intercepts clicks before the app.js module.
+// Verify that its "Obaveštenja" button really opens the Firebase status UI.
+assert(profile.includes('data-v5-legacy="notifications"'),
+  "Modern profile must expose the notifications control");
+assert(profile.includes('window.SFFOpenPushDiagnostics().catch'),
+  "Modern profile must invoke the actual native Firebase diagnostics");
+assert(app.includes('window.SFFOpenPushDiagnostics = () => {') &&
+       app.includes('return act("notifications");'),
+  "Main application must provide the modern profile bridge");
+assert(!profile.includes('if (window.SFFAndroid?.ask) window.SFFAndroid.ask();'),
+  "Old permission-only handler must never swallow the diagnostics click");
 assert(profile.includes('await window.SFFCropImage(file, slot)'));
 assert(profile.includes("photoRevisions"),"Profile artwork should not reload on every open");
 assert(profile.includes('photoRevisions.set(profileId + ":" + slot, Date.now())'));
 
-const app=read("client/app.js");
 assert(app.includes("const authoredShellParts = new Map()") &&
   app.includes("authoredShellParts.get(selector)"),
   "Authored shell snapshots must prevent third-party decorations from triggering repaint");

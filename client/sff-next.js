@@ -328,8 +328,12 @@
     if (legacy) {
       const action = legacy.dataset.v5Legacy;
       if (action === "notifications") {
-        if (window.SFFAndroid?.ask) window.SFFAndroid.ask();
-        else if (window.Notification) window.Notification.requestPermission();
+        // The new profile intercepts the legacy click. Route it to the
+        // authenticated diagnostics in app.js instead of only asking for
+        // permission (which was silently doing nothing on granted devices).
+        if (typeof window.SFFOpenPushDiagnostics === "function")
+          void window.SFFOpenPushDiagnostics().catch((e) => toast(e.message));
+        else toast("Dijagnostika obaveštenja nije učitana. Ponovo otvori SFF.");
       } else if (action === "privacy" || action === "password")
         accountDialog(action).catch((e) => toast(e.message));
       return;
