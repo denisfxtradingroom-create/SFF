@@ -14,6 +14,10 @@ import java.lang.ref.WeakReference;
 import org.json.JSONObject;
 
 public class Main extends Activity {
+  private static volatile boolean appForeground = false;
+  public static boolean isForeground() { return appForeground; }
+  @Override protected void onResume() { super.onResume(); appForeground = true; }
+  @Override protected void onPause() { appForeground = false; super.onPause(); }
   static WeakReference<Main> current = new WeakReference<>(null);
   static final String PUSH_REGISTER_ACTION = "app.sff.signal.REGISTER_PUSH";
   // Only an authenticated page on our own HTTPS origin receives the token.
