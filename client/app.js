@@ -15,6 +15,17 @@ const esc = (v) =>
         c
       ],
   );
+// The Android WebView cannot open target=_blank external windows on its own.
+// Only links to our generated one-time Jitsi fallback rooms are opened natively.
+document.addEventListener("click", (event) => {
+  const anchor = event.target.closest('a[href^="https://meet.jit.si/SFF-"]');
+  if (!anchor || !window.SFFAndroid?.openExternal) return;
+  const target = anchor.getAttribute("href") || "";
+  if (!/^https:\/\/meet\.jit\.si\/SFF-[a-f0-9]{32}$/.test(target)) return;
+  event.preventDefault();
+  window.SFFAndroid.openExternal(target);
+}, true);
+
 const mark = '<img src="/mark.svg" alt="SFF">',
   empty = (title, sub = "") =>
     '<div class="empty">' +
