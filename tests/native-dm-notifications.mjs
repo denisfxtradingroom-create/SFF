@@ -10,7 +10,9 @@ const server = read("backend/server.mjs");
 const client = read("client/app.js");
 
 assert(service.includes('"dm_message"'), "Firebase service handles direct messages");
-assert(service.includes('setSmallIcon(R.drawable.mark)'), "System notifications show SFF icon");
+assert(service.includes('setSmallIcon(R.drawable.sff_status)'), "System notifications use transparent SFF logo");
+assert(read("android/push/app/src/main/res/drawable/sff_status.xml").includes('android:fillColor="#FFFFFFFF"'),
+  "Notification small icon must be a monochrome SFF silhouette without background");
 assert(service.includes("RemoteInput.Builder"), "Native notifications support inline reply");
 assert(service.includes("BigTextStyle"), "Notification can preview message text");
 assert(service.includes("VISIBILITY_PRIVATE"), "Lockscreen privacy is respected");
