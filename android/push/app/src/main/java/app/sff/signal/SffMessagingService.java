@@ -97,7 +97,11 @@ public final class SffMessagingService extends FirebaseMessagingService {
     Intent replyIntent = new Intent(this,SffReplyReceiver.class)
       .setAction(SffReplyReceiver.ACTION_REPLY)
       .putExtra(SffReplyReceiver.EXTRA_ROOM,roomId)
-      .putExtra(SffReplyReceiver.EXTRA_NOTIFICATION,notificationId);
+      .putExtra(SffReplyReceiver.EXTRA_NOTIFICATION,notificationId)
+      // Preserve conversation context when the reply is posted without
+      // launching the activity, instead of displaying a "sent" status card.
+      .putExtra(SffReplyReceiver.EXTRA_SENDER,sender)
+      .putExtra(SffReplyReceiver.EXTRA_PREVIEW,body);
     PendingIntent directReply = PendingIntent.getBroadcast(
       this,notificationId,replyIntent,
       PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
