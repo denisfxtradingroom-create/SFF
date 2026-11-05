@@ -1120,6 +1120,9 @@ async function act(a, id) {
       "<p>Domaćin mora besplatno da se prijavi na Jitsi. Poziv se odvija preko spoljnog servisa, " +
       "ne preko SFF servera. Ovu opciju koristi samo ako ugrađeni poziv ne radi.</p>");
     if (socket?.readyState !== 1) await historyLoad();
+    // Android's WebView cannot reliably run a third-party video room.
+    // Launch the free Jitsi room in the phone's regular browser.
+    if (window.SFFAndroid?.openExternal) window.SFFAndroid.openExternal(link);
     return;
   }
   if (a === "callAudio" || a === "callVideo") {
