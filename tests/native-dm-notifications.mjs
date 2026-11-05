@@ -10,6 +10,16 @@ const server = read("backend/server.mjs");
 const client = read("client/app.js");
 
 assert(service.includes('"dm_message"'), "Firebase service handles direct messages");
+const dmHandler=service.split("private void showMessage(RemoteMessage message) {")[1]
+  .split("private void showCall(RemoteMessage message) {")[0];
+assert(!dmHandler.includes("Main.isForeground()"),
+  "Activity lifecycle must not silently discard a real private message");
+assert(dmHandler.includes(".setOnlyAlertOnce(false)"),
+  "New DMs must re-alert even when updating an existing room notification");
+assert(client.includes("status.latestMessagePush"),
+  "Settings must differentiate real DM delivery from a synthetic FCM test");
+assert(push.includes('latestMessagePush: recentDm.get(uid)'),
+  "Delivery diagnosis must be scoped to the logged-in user");
 assert(service.includes('setSmallIcon(R.drawable.sff_status)'), "System notifications use transparent SFF logo");
 assert(read("android/push/app/src/main/res/drawable/sff_status.xml").includes('android:fillColor="#FFFFFFFF"'),
   "Notification small icon must be a monochrome SFF silhouette without background");
