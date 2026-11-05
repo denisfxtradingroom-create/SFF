@@ -15,6 +15,8 @@ public final class SffTokenReceiver extends BroadcastReceiver {
         context.getSharedPreferences("sff_push",0)
           .edit().putString("fcm_token",token).apply();
         Main.deliverPushToken(token);
-      });
+      })
+      .addOnFailureListener(error -> android.util.Log.w(
+        "SFFPush","FCM token request failed: " + error.getClass().getSimpleName()));
   }
 }
