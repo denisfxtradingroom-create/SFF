@@ -27,4 +27,20 @@ assert(main.includes('"meet.jit.si".equals(target.getHost())'),"External links u
 assert(push.includes('async function sendMessage('),"Server can send Firebase DM events");
 assert(server.includes("callPush.sendMessage(recipient.uid"),"Saved DMs trigger push");
 assert(client.includes("window.SFFAndroid.openExternal(target)"),"Chat fallback uses native bridge");
-console.log("PASS SFF native message preview, icon, reply security, Jitsi link integration");
+assert(main.includes('getString("fcm_token",null)'),
+  "FCM device registration must be retried after page load and app resume");
+const registrationSection = main.split('public void registerPush()')[1].split('public void ask()')[0];
+assert(!registrationSection.includes('!mainPageLoaded'),
+  "Early in-app registration must not be silently skipped");
+assert(main.includes('notificationsEnabled()'),
+  "Android app must expose notification permission status");
+assert(service.includes('"push_self_test"') && service.includes("showSelfTest()"),
+  "FCM test must post a native SFF notification");
+assert(server.includes('a === "pushStatus"') && server.includes('a === "pushSelfTest"'),
+  "Authenticated push diagnostics must be exposed");
+assert(client.includes('a === "pushRefresh"') &&
+  client.includes('a === "pushSelfTest"'),
+  "User must be able to refresh token status and send a test");
+assert(read("backend/dm-calls.mjs").includes('if(callPush)'),
+  "Native incoming ringtone is needed even when background WebSocket stays open");
+console.log("PASS SFF native message preview, icon, reply security, FCM handshake, offline calls and diagnostics");
