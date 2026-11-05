@@ -199,3 +199,24 @@
 @media (max-width:760px) {
   .sffProfileDialog .sffV5AvatarClip { clip-path: inset(0 round 17px); }
 }
+
+
+/* Mobile-safe photo framing controls; no expensive animations or reflows. */
+.sffCropPosition {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: center;
+}
+.sffCropPosition button {
+  min-width: 42px;
+  min-height: 42px;
+  border-radius: 10px;
+  border: 1px solid #805369;
+  color: #ffe5ef;
+  background: #33212d;
+  font-weight: 700;
+}
+.sffCropPosition button[data-crop-reset] { padding-inline: 14px; }
+.sffCropCanvasWrap { overflow: hidden; }
+.sffCropCanvasWrap canvas { max-height: min(52dvh, 450px); object-fit: contain; }
