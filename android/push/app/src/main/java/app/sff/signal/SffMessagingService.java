@@ -53,7 +53,7 @@ public final class SffMessagingService extends FirebaseMessagingService {
       manager.createNotificationChannel(channel);
     }
     manager.notify(4201,new Notification.Builder(this,MESSAGE_CHANNEL)
-      .setSmallIcon(R.drawable.mark)
+      .setSmallIcon(R.drawable.sff_status)
       .setContentTitle("SFF · Test notifikacije")
       .setContentText("Firebase poruka je stigla na ovaj telefon.")
       .setContentIntent(openApp(4201))
@@ -102,11 +102,11 @@ public final class SffMessagingService extends FirebaseMessagingService {
     RemoteInput input = new RemoteInput.Builder(SffReplyReceiver.KEY_TEXT)
       .setLabel("Odgovori na poruku").build();
     Notification.Action replyAction = new Notification.Action.Builder(
-      R.drawable.mark,"Odgovori",directReply).addRemoteInput(input)
+      R.drawable.sff_status,"Odgovori",directReply).addRemoteInput(input)
       .setAllowGeneratedReplies(true).build();
 
     Notification.Builder builder = new Notification.Builder(this,MESSAGE_CHANNEL)
-      .setSmallIcon(R.drawable.mark)
+      .setSmallIcon(R.drawable.sff_status)
       .setContentTitle("SFF · " + sender)
       .setContentText(body)
       .setStyle(new Notification.BigTextStyle().bigText(body))
@@ -139,7 +139,7 @@ public final class SffMessagingService extends FirebaseMessagingService {
       manager.createNotificationChannel(channel);
     }
     Notification.Builder builder = new Notification.Builder(this,CALL_CHANNEL)
-      .setSmallIcon(R.drawable.mark)
+      .setSmallIcon(R.drawable.sff_status)
       .setContentTitle(video ? "Dolazni SFF video poziv" : "Dolazni SFF poziv")
       .setContentText((message.getData().get("name") == null
         ? "Prijatelj" : message.getData().get("name")) + " te zove. Otvori SFF da se javiš.")
