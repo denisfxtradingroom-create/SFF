@@ -148,3 +148,54 @@
 .sffCropActions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
 .sffCropActions button { border-radius: 10px; padding: 10px 14px; min-height: 40px; }
 .sffCropActions button:disabled { opacity: .6; }
+
+
+/* SFF 0.8.8: hard clipping on Android System WebView, including tall images. */
+.sffProfileDialog .sffV5BigAvatar {
+  position: relative !important;
+  isolation: isolate;
+  contain: layout;
+}
+.sffProfileDialog .sffV5AvatarClip {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  display: block !important;
+  border-radius: inherit !important;
+  clip-path: inset(0 round 20px);
+}
+.sffProfileDialog .sffV5AvatarClip img {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  transform: none !important;
+}
+.sffProfileDialog .sffV5Cover {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden !important;
+}
+.sffProfileDialog .sffV5Cover > img {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+@media (max-width:760px) {
+  .sffProfileDialog .sffV5AvatarClip { clip-path: inset(0 round 17px); }
+}
