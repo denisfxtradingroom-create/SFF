@@ -1313,6 +1313,7 @@ async function act(a, id) {
     const registered = status.registeredDevices > 0;
     const delivery = status.latestMessagePush;
     const deliveryLabel = {
+      attempting: "Server pokušava da pošalje poruku putem Firebase-a",
       firebase_accepted: "Firebase prihvatio slanje; prijem na telefonu nije potvrđen",
       firebase_rejected: "Firebase odbio slanje poruke",
       no_registered_devices: "Telefon nije registrovan na nalogu koji prima poruku",
