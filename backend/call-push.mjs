@@ -44,6 +44,22 @@ export async function createPushDevices(db) {
       ON sff_push_devices(session);
   `);
 
+  // Ephemeral, user-scoped delivery diagnostics. Never store message text,
+  // device tokens, login credentials or user-visible contact information.
+  const recentDm = new Map();
+  function dmResult(uid, state, registeredDevices=0, firebaseAccepted=0) {
+    recentDm.delete(uid);
+    recentDm.set(uid, {
+      state, at: Date.now(),
+      registeredDevices, firebaseAccepted,
+    });
+    if (recentDm.size > 256)
+      recentDm.delete(recentDm.keys().next().value);
+    console.info("[SFF push] DM delivery:",
+      state, "devices=" + registeredDevices,
+      "firebaseAccepted=" + firebaseAccepted);
+  }
+  
   const validateToken = (token) => {
     if (typeof token !== "string" || token.length < 20 ||
         token.length > 4096 || !tokenPattern.test(token))
@@ -127,14 +143,25 @@ export async function createPushDevices(db) {
   // Private DM push with an optional message preview, as requested by users.
   // Never include session cookies, passwords or other credentials in FCM data.
   async function sendMessage(uid, details, sendOverride = null) {
-    if (!pushConfigured()) return false;
+    if (!pushConfigured()) {
+      dmResult(uid, "not_configured");
+      return false;
+    }
     const room = Number(details?.room);
     const messageId = Number(details?.messageId);
     if (!Number.isSafeInteger(room) || room < 1 ||
-        !Number.isSafeInteger(messageId) || messageId < 1)
+        !Number.isSafeInteger(messageId) || messageId < 1) {
+      dmResult(uid, "invalid_message");
       return false;
+    }
     const tokens = await list(uid);
-    if (!tokens.length) return false;
+    if (!tokens.length) {
+      dmResult(uid, "no_registered_devices");
+      return false;
+    }
+    // Record the real /api/post delivery attempt BEFORE Firebase SDK
+    // initialization, which may be slow on a cold server.
+    dmResult(uid, "attempting", tokens.length);
     const payload = {
       data: {
         type: "dm_message",
@@ -155,6 +182,7 @@ export async function createPushDevices(db) {
       const client = sendOverride ? null : await getMessagingClient();
       sender = sendOverride || client.send.bind(client);
     } catch (error) {
+      dmResult(uid, "firebase_unavailable", tokens.length);
       console.warn("[SFF push] DM transport unavailable:", error.message);
       return false;
     }
@@ -171,6 +199,8 @@ export async function createPushDevices(db) {
         else console.warn("[SFF push] DM delivery failed:", code || "send_error");
       }
     }
+    dmResult(uid, succeeded ? "firebase_accepted" : "firebase_rejected",
+      tokens.length, succeeded);
     return succeeded > 0;
   }
   // User-scoped diagnostics: never return tokens, cookies or Firebase secrets.
@@ -184,6 +214,8 @@ export async function createPushDevices(db) {
       configured: pushConfigured(),
       registeredDevices: Number(row?.devices || 0),
       lastRegistration: Number(row?.last_registration || 0),
+      // Acknowledgement only: Android may still suppress or drop a notification.
+      latestMessagePush: recentDm.get(uid) || null,
     };
   }
 

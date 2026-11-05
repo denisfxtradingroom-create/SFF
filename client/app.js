@@ -1311,6 +1311,22 @@ async function act(a, id) {
     const status = await api("pushStatus");
     const notificationsAllowed = window.SFFAndroid.notificationsEnabled?.() === true;
     const registered = status.registeredDevices > 0;
+    const delivery = status.latestMessagePush;
+    const deliveryLabel = {
+      attempting: "Server pokušava da pošalje poruku putem Firebase-a",
+      firebase_accepted: "Firebase prihvatio slanje; prijem na telefonu nije potvrđen",
+      firebase_rejected: "Firebase odbio slanje poruke",
+      no_registered_devices: "Telefon nije registrovan na nalogu koji prima poruku",
+      firebase_unavailable: "Firebase transport nije dostupan",
+      not_configured: "Firebase nije konfigurisan",
+      invalid_message: "Neispravan događaj poruke"
+    };
+    const latestDm = delivery
+      ? (deliveryLabel[delivery.state] || "Nepoznat rezultat") +
+        " · " + new Date(Number(delivery.at)).toLocaleString("sr-RS") +
+        " · registrovanih uređaja: " + Number(delivery.registeredDevices || 0) +
+        " · Firebase prihvatio: " + Number(delivery.firebaseAccepted || 0)
+      : "Još nema zabeleženog pokušaja isporuke privatne poruke od pokretanja servera.";
     return modal("SFF · Provera Android obaveštenja",
       "<p><strong>Android dozvola:</strong> " +
         (notificationsAllowed ? "Odobrena" : "ISKLJUČENA — dozvoli SFF notifikacije u podešavanjima telefona") +
@@ -1319,6 +1335,7 @@ async function act(a, id) {
       "</p><p><strong>Registrovani telefoni:</strong> " +
         Number(status.registeredDevices || 0) +
       "</p>" +
+      "<p><strong>Poslednja prava poruka:</strong> " + latestDm + "</p>" +
       (test ? "<p><strong>Firebase test:</strong> " +
         (test.acceptedByFirebase
           ? "Firebase prihvatio poruku. Proveri Android notifikacije."

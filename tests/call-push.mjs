@@ -66,6 +66,12 @@ assert.equal(captured.data.body,"Ćao, jesi kući?");
 assert.equal(captured.android.restrictedPackageName,"app.sff.signal");
 assert.equal(captured.notification,undefined,"Native service renders the SFF icon");
 assert.equal(captured.android.priority,"high");
+const delivery=await push.status(2);
+assert.equal(delivery.latestMessagePush.state,"firebase_accepted");
+assert.equal(delivery.latestMessagePush.registeredDevices,1);
+assert.equal(delivery.latestMessagePush.firebaseAccepted,1);
+assert.equal((await push.status(1)).latestMessagePush,null,
+  "Private delivery telemetry must not leak to the sender");
 assert.equal(await push.sendMessage(2, {room:5,messageId:0}),false,
   "Invalid DM payload must not reach Firebase");
 const attachmentPushed = await push.sendMessage(2,{
@@ -75,6 +81,8 @@ assert.equal(attachmentPushed,true);
 assert.equal(captured.data.body,"Poslat je prilog.");
 await push.register(1,"new-session",token);
 assert.deepEqual(await push.list(2),[],"Token must not remain assigned to prior account");
+assert.equal(await push.sendMessage(2,{room:5,messageId:179}),false);
+assert.equal((await push.status(2)).latestMessagePush.state,"no_registered_devices");
 assert.deepEqual(await push.list(1),[token]);
 await push.forgetSession("new-session");
 assert.deepEqual(await push.list(1),[],"Logout must revoke device token");
