@@ -5,7 +5,7 @@ import { runInNewContext } from "node:vm";
 import { fileURLToPath } from "node:url";
 
 const root = new URL("../", import.meta.url);
-const read = (name) => readFileSync(new URL(name, root), "utf8");
+const read = (name) => readFileSync(new URL(name, root), "utf8").replace(/\r\n/g, "\n");
 for (const name of [
   "client/profile-crop.js", "client/sff-next.js",
   "client/app.js", "client/social-wall.js", "client/voice.js"
