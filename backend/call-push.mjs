@@ -159,6 +159,9 @@ export async function createPushDevices(db) {
       dmResult(uid, "no_registered_devices");
       return false;
     }
+    // Record the real /api/post delivery attempt BEFORE Firebase SDK
+    // initialization, which may be slow on a cold server.
+    dmResult(uid, "attempting", tokens.length);
     const payload = {
       data: {
         type: "dm_message",
