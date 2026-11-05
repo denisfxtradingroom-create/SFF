@@ -40,6 +40,24 @@ assert.equal(captured.android.priority,"high");
 assert.equal(captured.android.ttl,45000);
 assert.equal(captured.data.room,"4");
 assert(!JSON.stringify(captured).includes("lozinka"));
+const messagePushed = await push.sendMessage(2, {
+  room: 5,messageId: 177,sender: "Alice",body: "Ćao, jesi kući?"
+}, async message => { captured=message; return "dm-notification"; });
+assert.equal(messagePushed,true,"Registered Android recipient receives a DM push");
+assert.equal(captured.data.type,"dm_message");
+assert.equal(captured.data.message_id,"177");
+assert.equal(captured.data.sender,"Alice");
+assert.equal(captured.data.body,"Ćao, jesi kući?");
+assert.equal(captured.android.restrictedPackageName,"app.sff.signal");
+assert.equal(captured.notification,undefined,"Native service renders the SFF icon");
+assert.equal(captured.android.priority,"high");
+assert.equal(await push.sendMessage(2, {room:5,messageId:0}),false,
+  "Invalid DM payload must not reach Firebase");
+const attachmentPushed = await push.sendMessage(2,{
+  room:5,messageId:178,sender:"Alice",hasFile:true
+},async message => { captured=message; return "dm-attachment"; });
+assert.equal(attachmentPushed,true);
+assert.equal(captured.data.body,"Poslat je prilog.");
 await push.register(1,"new-session",token);
 assert.deepEqual(await push.list(2),[],"Token must not remain assigned to prior account");
 assert.deepEqual(await push.list(1),[token]);
