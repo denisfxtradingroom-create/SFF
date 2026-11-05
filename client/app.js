@@ -101,7 +101,12 @@ const modal = (title, html) => {
 // The modern profile UI lives in sff-next.js (a classic script) while
 // diagnostics live in this module. Export only the narrow, user-triggered
 // action; reuse existing authenticated API and modal, not a second UI.
-window.SFFOpenPushDiagnostics = () => act("notifications");
+window.SFFOpenPushDiagnostics = () => {
+  // The profile dialog was decorated by sff-next.js; restore the ordinary
+  // modal layout before showing push diagnostics in that same dialog.
+  dlg.classList.remove("sffProfileDialog");
+  return act("notifications");
+};
 let mailEnabled = false;
 let authGateTouched = false;
 api("capabilities")
