@@ -376,7 +376,15 @@ async function sync() {
   if (n !== seq || s !== space) return;
   people = ps;
   render();
-  if (current()?.kind !== "voice") await historyLoad();
+  // Chat messages already arrive through WebSocket 'message'/'changed'.
+  // Re-fetching the entire conversation for every 'state' event used to
+  // repaint the message feed and caused visible flashing on Android.
+  // A new room clears list, so it still receives its initial history.
+  if (current()?.kind !== "voice") {
+    if (!list.length || !document.querySelector("#feed")?.querySelector(".msg"))
+      await historyLoad();
+    else updateSeen();
+  }
 }
 function render() {
   const r = current(),
