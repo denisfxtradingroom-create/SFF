@@ -72,6 +72,22 @@ public class Main extends Activity {
       });
     }
 
+    @JavascriptInterface public void openExternal(String url) {
+      runOnUiThread(() -> {
+        if (web == null || !mainPageLoaded ||
+            !same(Uri.parse(web.getUrl() == null ? "" : web.getUrl()))) return;
+        try {
+          Uri target = Uri.parse(url);
+          if (!"https".equals(target.getScheme()) ||
+              !"meet.jit.si".equals(target.getHost()) ||
+              !target.getPath().matches("/SFF-[a-f0-9]{32}")) return;
+          Intent browser = new Intent(Intent.ACTION_VIEW,target)
+            .addCategory(Intent.CATEGORY_BROWSABLE);
+          startActivity(browser);
+        } catch (Exception ignored) {}
+      });
+    }
+
     @JavascriptInterface public void show(String title) {
       runOnUiThread(() -> {
         if (System.currentTimeMillis() - lastNotice < 2000 || !same(Uri.parse(web.getUrl() == null ? "" : web.getUrl()))) return;
