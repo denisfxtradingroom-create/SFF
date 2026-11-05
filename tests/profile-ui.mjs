@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { runInNewContext } from "node:vm";
+import { fileURLToPath } from "node:url";
 
 const root = new URL("../", import.meta.url);
 const read = (name) => readFileSync(new URL(name, root), "utf8");
@@ -9,7 +10,7 @@ for (const name of [
   "client/profile-crop.js", "client/sff-next.js",
   "client/app.js", "client/social-wall.js", "client/voice.js"
 ]) {
-  const result = spawnSync(process.execPath, ["--check", new URL(name, root).pathname],{
+  const result = spawnSync(process.execPath, ["--check", fileURLToPath(new URL(name, root))],{
     encoding:"utf8",timeout:10000
   });
   assert.equal(result.status, 0, name+": "+result.stderr);
