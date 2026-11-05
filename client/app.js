@@ -1292,8 +1292,36 @@ async function act(a, id) {
         "Promeni",
       ),
     );
-  if (a === "notifications" && window.SFFAndroid)
-    return window.SFFAndroid.ask();
+  if ((a === "notifications" || a === "pushRefresh" ||
+       a === "pushSelfTest") && window.SFFAndroid) {
+    if (a === "notifications") {
+      window.SFFAndroid.ask?.();
+      window.SFFAndroid.registerPush?.();
+    }
+    const test = a === "pushSelfTest" ? await api("pushSelfTest") : null;
+    const status = await api("pushStatus");
+    const notificationsAllowed = window.SFFAndroid.notificationsEnabled?.() === true;
+    const registered = status.registeredDevices > 0;
+    return modal("SFF · Provera Android obaveštenja",
+      "<p><strong>Android dozvola:</strong> " +
+        (notificationsAllowed ? "Odobrena" : "ISKLJUČENA — dozvoli SFF notifikacije u podešavanjima telefona") +
+      "</p><p><strong>Firebase server:</strong> " +
+        (status.configured ? "Podešen" : "NIJE PODEŠEN") +
+      "</p><p><strong>Registrovani telefoni:</strong> " +
+        Number(status.registeredDevices || 0) +
+      "</p>" +
+      (test ? "<p><strong>Firebase test:</strong> " +
+        (test.acceptedByFirebase
+          ? "Firebase prihvatio poruku. Proveri Android notifikacije."
+          : "Slanje nije uspelo. Proveri registraciju i server.") +
+        "</p>" : "") +
+      "<p class=\"muted\">Ako piše 0 telefona, sačekaj da se Firebase registracija završi i klikni Osveži. " +
+        "Firebase potvrda slanja nije dokaz da je obaveštenje stiglo na telefon.</p>" +
+      '<div class="row">' +
+        btn("pushRefresh","Osveži status") +
+        btn("pushSelfTest","Pošalji test notifikaciju") +
+      "</div>");
+  }
   if (a === "notifications")
     return note(
       (await Notification.requestPermission()) === "granted"
