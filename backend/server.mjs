@@ -740,7 +740,8 @@ async function action(a, b, u, res, req) {
           const author = await one("select name from users where id=?", u);
           for (const recipient of recipients) {
             void callPush.sendMessage(recipient.uid, {
-              room: r.id, messageId: id, sender: author?.name || "Korisnik"
+              room: r.id, messageId: id, sender: author?.name || "Korisnik",
+              body, hasFile: Boolean(file)
             }).catch((error) =>
               console.warn("[SFF push] DM notification unavailable:", error.message));
           }
