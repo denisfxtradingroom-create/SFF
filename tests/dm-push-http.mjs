@@ -22,6 +22,7 @@ const proc=spawn(process.execPath,
     stdio:["ignore","pipe","pipe"]
   });
 let diagnostic="";
+let processOutput="";
 proc.stderr.on("data",d=>{ diagnostic+=String(d); });
 try {
   const base=await new Promise((resolve,reject)=>{
@@ -29,6 +30,7 @@ try {
     const timer=setTimeout(()=>reject(Error("SFF test server did not start")),12000);
     proc.stdout.on("data",chunk=>{
       stdout+=String(chunk);
+      processOutput+=String(chunk);
       const match=stdout.match(/SFF ready (\d+)/);
       if(match){
         clearTimeout(timer);
@@ -63,8 +65,11 @@ try {
   await req(bob,"accept",{username:"alice"});
   const room=(await req(alice,"dm",{username:"bob"})).id;
   await req(bob,"pushRegister",{token:"fcm:"+("test_token_1234567890".repeat(7))});
-  assert.equal((await req(bob,"pushStatus")).registeredDevices,1);
-  assert.equal((await req(bob,"pushStatus")).latestMessagePush,null);
+  const enrollment=await req(bob,"pushStatus");
+  assert.equal(enrollment.configured,true,
+    "Fake FCM env must enable the actual /api/post push branch");
+  assert.equal(enrollment.registeredDevices,1);
+  assert.equal(enrollment.latestMessagePush,null);
 
   const msg=await req(alice,"post",{room,body:"Poruka poslata kroz pravi DM API"});
   assert(Number.isSafeInteger(msg.id)&&msg.id>0);
@@ -74,6 +79,12 @@ try {
     if(delivery)break;
     await new Promise(resolve=>setTimeout(resolve,300));
   }
+  if(!delivery)console.error("Real DM push diagnostics",{
+    configured:enrollment.configured,
+    registeredDevices:enrollment.registeredDevices,
+    serverOutput:processOutput.slice(-2500),
+    serverErrors:diagnostic.slice(-2500)
+  });
   assert(delivery,"Real private message must invoke Firebase DM dispatch");
   assert(["attempting","firebase_unavailable"].includes(delivery.state),
     "Actual DM must attempt FCM; invalid test credentials cannot be accepted");
