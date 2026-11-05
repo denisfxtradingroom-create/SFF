@@ -172,5 +172,61 @@ export async function createPushDevices(db) {
     }
     return succeeded > 0;
   }
-  return {register,unregister,forgetSession,list,sendCall,sendMessage};
+  // User-scoped diagnostics: never return tokens, cookies or Firebase secrets.
+  async function status(uid) {
+    const row = await db.one(
+      "select count(*) as devices,max(updated) as last_registration " +
+      "from sff_push_devices where uid=? and updated>?",
+      uid,Date.now()-60*24*60*60*1000
+    );
+    return {
+      configured: pushConfigured(),
+      registeredDevices: Number(row?.devices || 0),
+      lastRegistration: Number(row?.last_registration || 0),
+    };
+  }
+
+  // Send a direct system-notification test only to the logged-in user's own
+  // Android devices. FCM acknowledgement is NOT proof of phone delivery.
+  async function sendSelfTest(uid, sendOverride = null) {
+    const info = await status(uid);
+    if (!info.configured || !info.registeredDevices)
+      return { ...info, acceptedByFirebase: false };
+    const tokens = await list(uid);
+    let sender;
+    try {
+      const client = sendOverride ? null : await getMessagingClient();
+      sender = sendOverride || client.send.bind(client);
+    } catch (error) {
+      console.warn("[SFF push] self-test transport unavailable:",error.message);
+      return { ...info, acceptedByFirebase: false };
+    }
+    let successes = 0;
+    for (const token of tokens) {
+      try {
+        await sender({
+          token,
+          data: {
+            type:"push_self_test",
+            title:"SFF · Test notifikacije",
+            body:"Ako vidiš ovu poruku, Firebase push stiže na telefon."
+          },
+          android: {
+            priority:"high",
+            ttl:60000,
+            restrictedPackageName:"app.sff.signal"
+          }
+        });
+        successes++;
+      } catch (error) {
+        const code=String(error?.code || "");
+        if (code === "messaging/registration-token-not-registered" ||
+            code === "messaging/invalid-registration-token")
+          await db.run("delete from sff_push_devices where token_hash=?",sha256(token));
+        else console.warn("[SFF push] self-test failed:",code || "send_error");
+      }
+    }
+    return { ...info, acceptedByFirebase: successes > 0 };
+  }
+  return {register,unregister,forgetSession,list,sendCall,sendMessage,status,sendSelfTest};
 }
