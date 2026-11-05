@@ -68,8 +68,10 @@ public final class SffMessagingService extends FirebaseMessagingService {
     final String messageId = message.getData().get("message_id");
     if (room == null || !room.matches("[1-9][0-9]{0,15}") ||
         messageId == null || !messageId.matches("[1-9][0-9]{0,15}")) return;
-    // Don't duplicate an alert while the user is already viewing the app.
-    if (Main.isForeground()) return;
+    // Do NOT suppress real DMs based on Activity foreground state. Android
+    // multi-window and delayed lifecycle events can leave it stale while the
+    // user is in YouTube or another app. Showing an alert is safer than
+    // silently dropping a message.
     final long roomId;
     try { roomId=Long.parseLong(room); } catch (NumberFormatException e) { return; }
     final int notificationId = SffReplyReceiver.notificationId(roomId);
@@ -112,7 +114,11 @@ public final class SffMessagingService extends FirebaseMessagingService {
       .setStyle(new Notification.BigTextStyle().bigText(body))
       .setContentIntent(openApp(notificationId))
       .setAutoCancel(true)
-      .setOnlyAlertOnce(true)
+      // Same conversation notification is updated for each incoming message,
+      // but each NEW message must be audible and eligible for heads-up.
+      .setOnlyAlertOnce(false)
+      .setWhen(System.currentTimeMillis())
+      .setShowWhen(true)
       .setCategory(Notification.CATEGORY_MESSAGE)
       .setVisibility(Notification.VISIBILITY_PRIVATE)
       .setPriority(Notification.PRIORITY_HIGH)
