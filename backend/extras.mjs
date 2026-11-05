@@ -18,6 +18,7 @@ export async function extras({
   roomFor,
   push,
   sockets,
+  onDmPosted = null,
 }) {
   await db.exec(`CREATE TABLE IF NOT EXISTS preferences(uid INTEGER PRIMARY KEY, verified INTEGER DEFAULT 0, requests INTEGER DEFAULT 1);
  CREATE TABLE IF NOT EXISTS challenges(uid INTEGER, kind TEXT, hash TEXT, expires INTEGER, PRIMARY KEY(uid,kind));
@@ -547,6 +548,16 @@ export async function extras({
         mime,
         mentions,
       });
+      // This is the ACTIVE /api/post handler. It previously returned before
+      // server.mjs's Firebase push branch could ever run.
+      if (r.kind === "dm" && !r.space && typeof onDmPosted === "function") {
+        void onDmPosted({
+          room:r.id,authorUid:u,messageId:id,
+          senderName:sender?.name || sender?.username || "Korisnik",
+          body,hasFile:Boolean(file)
+        }).catch(error=>
+          console.warn("[SFF push] DM notification unavailable:",error.message));
+      }
       return { id };
     }
   }
