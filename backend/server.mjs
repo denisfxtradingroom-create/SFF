@@ -108,6 +108,24 @@ const dmCalls = createDmCallManager({
   callPush: pushConfigured() ? callPush : null
 });
 const resolveIce = createIceResolver();
+
+// The actual /api/post is owned by extras.handle(), not the fallback branch
+// below. Use one shared, recipient-scoped native FCM dispatcher for BOTH.
+async function notifyDirectMessage({room,authorUid,messageId,senderName,body,hasFile}) {
+  if (!pushConfigured()) return;
+  const recipients=await all(
+    "select uid from participants where room=? and uid<>?",room,authorUid
+  );
+  if (!recipients.length) return;
+  const name=senderName ||
+    (await one("select name from users where id=?",authorUid))?.name || "Korisnik";
+  for (const recipient of recipients) {
+    void callPush.sendMessage(recipient.uid,{
+      room,messageId,sender:name,body,hasFile
+    }).catch(error=>
+      console.warn("[SFF push] DM dispatch unavailable:",error.message));
+  }
+}
 const extra = await extras({
   db,
   one,
@@ -121,6 +139,7 @@ const extra = await extras({
   roomFor,
   push,
   sockets,
+  onDmPosted: notifyDirectMessage,
 });
 const wall = await socialWall({db,one,all,run,insert,demand,blocked,limit,push});
 // Runs only when the operator deliberately sets the one-time reset switch.
@@ -736,27 +755,13 @@ async function action(a, b, u, res, req) {
             r.role === "Moderator",
         ),
     });
-    // Native Android DM alerts are separate from the in-app social bell.
-    // Run only AFTER the message commit, and never delay the API response
-    // for Firebase. Room membership and block rules were checked by roomFor.
-    if (r.kind === "dm" && !r.space && pushConfigured()) {
-      try {
-        const recipients = await all(
-          "select uid from participants where room=? and uid<>?", r.id, u
-        );
-        if (recipients.length) {
-          const author = await one("select name from users where id=?", u);
-          for (const recipient of recipients) {
-            void callPush.sendMessage(recipient.uid, {
-              room: r.id, messageId: id, sender: author?.name || "Korisnik",
-              body, hasFile: Boolean(file)
-            }).catch((error) =>
-              console.warn("[SFF push] DM notification unavailable:", error.message));
-          }
-        }
-      } catch (error) {
-        console.warn("[SFF push] DM recipient lookup unavailable:", error.message);
-      }
+    // This legacy fallback is currently shadowed by extras.handle("post"),
+    // but keep it using the same dispatcher if that routing ever changes.
+    if (r.kind === "dm" && !r.space) {
+      void notifyDirectMessage({
+        room:r.id,authorUid:u,messageId:id,body,hasFile:Boolean(file)
+      }).catch(error=>
+        console.warn("[SFF push] DM dispatch unavailable:",error.message));
     }
     return { id };
   }
