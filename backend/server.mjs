@@ -384,6 +384,14 @@ async function action(a, b, u, res, req) {
   }
   const update = (uids) => push({ type: "state" }, (s) => uids.includes(s.uid));
   if (a === "state") return await state(u);
+  if (a === "pushStatus") {
+    limit("push-status:" + u,20);
+    return await callPush.status(u);
+  }
+  if (a === "pushSelfTest") {
+    limit("push-self-test:" + u,3);
+    return await callPush.sendSelfTest(u);
+  }
   if (a === "pushRegister") {
     demand(pushConfigured(),"Firebase push servis još nije aktiviran.",503);
     limit("push-register:" + u,20);

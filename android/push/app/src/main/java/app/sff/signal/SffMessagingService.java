@@ -36,7 +36,31 @@ public final class SffMessagingService extends FirebaseMessagingService {
       showMessage(message);
       return;
     }
+    if ("push_self_test".equals(type)) {
+      showSelfTest();
+      return;
+    }
     if ("call_incoming".equals(type)) showCall(message);
+  }
+
+  private void showSelfTest() {
+    final NotificationManager manager =
+      (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+    if (Build.VERSION.SDK_INT >= 26) {
+      NotificationChannel channel = new NotificationChannel(
+        MESSAGE_CHANNEL,"SFF privatne poruke",NotificationManager.IMPORTANCE_HIGH);
+      channel.enableVibration(true);
+      manager.createNotificationChannel(channel);
+    }
+    manager.notify(4201,new Notification.Builder(this,MESSAGE_CHANNEL)
+      .setSmallIcon(R.drawable.sff_status)
+      .setContentTitle("SFF · Test notifikacije")
+      .setContentText("Firebase poruka je stigla na ovaj telefon.")
+      .setContentIntent(openApp(4201))
+      .setAutoCancel(true)
+      .setPriority(Notification.PRIORITY_HIGH)
+      .setCategory(Notification.CATEGORY_MESSAGE)
+      .build());
   }
 
   private void showMessage(RemoteMessage message) {
@@ -78,11 +102,11 @@ public final class SffMessagingService extends FirebaseMessagingService {
     RemoteInput input = new RemoteInput.Builder(SffReplyReceiver.KEY_TEXT)
       .setLabel("Odgovori na poruku").build();
     Notification.Action replyAction = new Notification.Action.Builder(
-      R.drawable.mark,"Odgovori",directReply).addRemoteInput(input)
+      R.drawable.sff_status,"Odgovori",directReply).addRemoteInput(input)
       .setAllowGeneratedReplies(true).build();
 
     Notification.Builder builder = new Notification.Builder(this,MESSAGE_CHANNEL)
-      .setSmallIcon(R.drawable.mark)
+      .setSmallIcon(R.drawable.sff_status)
       .setContentTitle("SFF · " + sender)
       .setContentText(body)
       .setStyle(new Notification.BigTextStyle().bigText(body))
@@ -97,6 +121,8 @@ public final class SffMessagingService extends FirebaseMessagingService {
   }
 
   private void showCall(RemoteMessage message) {
+    // The foreground activity already shows the call overlay and controls.
+    if (Main.isForeground()) return;
     final String room = message.getData().get("room");
     final String kind = message.getData().get("kind");
     if (room == null || !room.matches("[1-9][0-9]{0,15}")) return;
@@ -113,9 +139,10 @@ public final class SffMessagingService extends FirebaseMessagingService {
       manager.createNotificationChannel(channel);
     }
     Notification.Builder builder = new Notification.Builder(this,CALL_CHANNEL)
-      .setSmallIcon(R.drawable.mark)
+      .setSmallIcon(R.drawable.sff_status)
       .setContentTitle(video ? "Dolazni SFF video poziv" : "Dolazni SFF poziv")
-      .setContentText("Otvori SFF da se javiš.")
+      .setContentText((message.getData().get("name") == null
+        ? "Prijatelj" : message.getData().get("name")) + " te zove. Otvori SFF da se javiš.")
       .setContentIntent(openApp(4190))
       .setAutoCancel(true)
       .setCategory(Notification.CATEGORY_CALL)

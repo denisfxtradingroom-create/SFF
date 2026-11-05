@@ -16,7 +16,16 @@ import org.json.JSONObject;
 public class Main extends Activity {
   private static volatile boolean appForeground = false;
   public static boolean isForeground() { return appForeground; }
-  @Override protected void onResume() { super.onResume(); appForeground = true; }
+  @Override protected void onResume() {
+    super.onResume();
+    appForeground = true;
+    // Re-enroll after resuming from the background or after Android restored
+    // the process; JavaScript may have reinitialized while FCM was idle.
+    if (web != null && mainPageLoaded) {
+      String token=getSharedPreferences("sff_push",0).getString("fcm_token",null);
+      if (token != null && !token.isEmpty()) deliverPushToken(token);
+    }
+  }
   @Override protected void onPause() { appForeground = false; super.onPause(); }
   static WeakReference<Main> current = new WeakReference<>(null);
   static final String PUSH_REGISTER_ACTION = "app.sff.signal.REGISTER_PUSH";
@@ -52,9 +61,16 @@ public class Main extends Activity {
   ConnectivityManager.NetworkCallback networkCallback;
 
   public class Notices {
+    @JavascriptInterface public boolean notificationsEnabled() {
+      NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+      return manager != null && manager.areNotificationsEnabled();
+    }
+
     @JavascriptInterface public void registerPush() {
       runOnUiThread(() -> {
-        if (web == null || !mainPageLoaded ||
+        // start() may invoke this before WebViewClient.onPageFinished. The
+        // original mainPageLoaded guard silently dropped the ONLY enrollment.
+        if (web == null || destroyed ||
             !same(Uri.parse(web.getUrl() == null ? "" : web.getUrl()))) return;
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED)
@@ -287,6 +303,11 @@ public class Main extends Activity {
         if (same(Uri.parse(url))) {
           mainPageLoaded = true;
           hideConnectionError();
+          // Firebase may have returned a token while the app was loading.
+          // Replay it only to the trusted SFF origin; JS will verify login.
+          String token=getSharedPreferences("sff_push",0)
+            .getString("fcm_token",null);
+          if (token != null && !token.isEmpty()) deliverPushToken(token);
         }
       }
 

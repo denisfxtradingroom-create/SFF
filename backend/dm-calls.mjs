@@ -53,14 +53,17 @@ export function createDmCallManager({sockets,roomFor,all,one,demand,limit,callPu
       for(const recipient of connected)
         send(recipient,{type:"call_incoming",room,kind:type,
           name:sender?.name||"Korisnik"});
-      if(!connected.length && callPush) {
-        // Keep the invitation active during push delivery; a returning app
-        // receives call_incoming upon establishing an authenticated WebSocket.
+      if(callPush) {
+        // Android may retain WebSocket in the background, but JS can't ring
+        // reliably while WebView is suspended. Always also send native FCM;
+        // the Android receiver suppresses duplicate alerts in foreground.
         void callPush.sendCall(other,{room,kind:type,name:sender?.name||"Korisnik"})
-          .then((delivered)=>{ if(!delivered) finish(call,"unavailable"); })
+          .then((delivered)=>{
+            if(!delivered && !connected.length) finish(call,"unavailable");
+          })
           .catch((error)=>{
             console.warn("[SFF calls] Push unavailable:",error.message);
-            finish(call,"unavailable");
+            if(!connected.length) finish(call,"unavailable");
           });
       }
       return true;

@@ -24,6 +24,10 @@ await assert.rejects(push.register(2,"session2","wrong token /"),/Neispravan/);
 await push.register(2,"session2",token);
 assert.deepEqual(await push.list(2),[token]);
 assert.deepEqual(await push.list(1),[]);
+const unconfiguredStatus=await push.status(2);
+assert.equal(unconfiguredStatus.configured,false);
+assert.equal(unconfiguredStatus.registeredDevices,1);
+assert.equal((await push.sendSelfTest(2)).acceptedByFirebase,false);
 assert.equal(await push.sendCall(2,{room:4,kind:"video",name:"alice"}),false,
   "Without a Firebase project, do not transmit any notification");
 process.env.SFF_FCM_SERVICE_ACCOUNT_JSON=JSON.stringify({
@@ -40,6 +44,17 @@ assert.equal(captured.android.priority,"high");
 assert.equal(captured.android.ttl,45000);
 assert.equal(captured.data.room,"4");
 assert(!JSON.stringify(captured).includes("lozinka"));
+assert.equal(captured.data.name,"alice");
+const selfTest=await push.sendSelfTest(2,async message=>{
+  captured=message;
+  return "test-notification";
+});
+assert.equal(selfTest.registeredDevices,1);
+assert.equal(selfTest.acceptedByFirebase,true);
+assert.equal(captured.data.type,"push_self_test");
+assert.equal(captured.android.priority,"high");
+assert.equal(captured.notification,undefined);
+assert.equal(captured.android.restrictedPackageName,"app.sff.signal");
 const messagePushed = await push.sendMessage(2, {
   room: 5,messageId: 177,sender: "Alice",body: "Ćao, jesi kući?"
 }, async message => { captured=message; return "dm-notification"; });
@@ -78,7 +93,7 @@ const manager=createDmCallManager({
   callPush:{sendCall:async()=>{mobilePushCount++;return true;}},
 });
 await manager.handle(caller,{type:"call_invite",room:5,kind:"audio"});
-assert.equal(mobilePushCount,1,"Push only when receiver has no WebSocket");
+assert.equal(mobilePushCount,1,"FCM rings for a fully offline receiver");
 assert(events.a.some(x=>x.type==="call_outgoing"));
 sockets.add(recipient);
 manager.connected(recipient);
@@ -89,7 +104,7 @@ assert(events.a.some(x=>x.type==="call_accepted"));
 await manager.handle(caller,{type:"call_end",room:5});
 assert.equal(events.b.at(-1).type,"call_ended");
 await manager.handle(caller,{type:"call_invite",room:5,kind:"video"});
-assert.equal(mobilePushCount,1,"Connected receiver must use WebSocket, not unnecessary FCM");
+assert.equal(mobilePushCount,2,"Background Android must receive native ringtone even if its WebSocket remains connected");
 await manager.handle(caller,{type:"call_end",room:5});
 process.env.SFF_FCM_SERVICE_ACCOUNT_JSON="";
 console.log("PASS: optional FCM, token privacy/reassignment/revoke, high-priority calls, offline wake and online fallback");

@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:width="24dp"
+  android:height="24dp"
+  android:viewportWidth="128"
+  android:viewportHeight="128">
+  <!-- Monochrome transparent silhouette derived from the existing SFF bird logo.
+       Android status-bar icons must not contain a solid opaque background. -->
+  <path android:fillColor="#FFFFFFFF"
+    android:pathData="M22 105Q44 91 42 73L34 59Q30 49 35 42Q38 38 44 39Q52 22 68 20Q84 18 93 31L98 41L111 48Q116 50 112 56L101 65L83 70Q72 86 86 107L63 117Z"/>
+</vector>

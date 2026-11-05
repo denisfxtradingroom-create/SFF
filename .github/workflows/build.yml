@@ -79,9 +79,9 @@ jobs:
       - name: Build Firebase Android APK with real native DM push and replies
         run: gradle --no-daemon -p android/push :app:assembleDebug
       - name: Prepare SFF Android installer
-        run: cp android/push/app/build/outputs/apk/debug/app-debug.apk SFF-Android-FCM-0.9.0.apk
+        run: cp android/push/app/build/outputs/apk/debug/app-debug.apk SFF-Android-FCM-0.9.1.apk
       - uses: actions/upload-artifact@v4
         with:
           name: SFF-Android-FCM
-          path: SFF-Android-FCM-0.9.0.apk
+          path: SFF-Android-FCM-0.9.1.apk
           retention-days: 30
