@@ -36,7 +36,31 @@ public final class SffMessagingService extends FirebaseMessagingService {
       showMessage(message);
       return;
     }
+    if ("push_self_test".equals(type)) {
+      showSelfTest();
+      return;
+    }
     if ("call_incoming".equals(type)) showCall(message);
+  }
+
+  private void showSelfTest() {
+    final NotificationManager manager =
+      (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+    if (Build.VERSION.SDK_INT >= 26) {
+      NotificationChannel channel = new NotificationChannel(
+        MESSAGE_CHANNEL,"SFF privatne poruke",NotificationManager.IMPORTANCE_HIGH);
+      channel.enableVibration(true);
+      manager.createNotificationChannel(channel);
+    }
+    manager.notify(4201,new Notification.Builder(this,MESSAGE_CHANNEL)
+      .setSmallIcon(R.drawable.mark)
+      .setContentTitle("SFF · Test notifikacije")
+      .setContentText("Firebase poruka je stigla na ovaj telefon.")
+      .setContentIntent(openApp(4201))
+      .setAutoCancel(true)
+      .setPriority(Notification.PRIORITY_HIGH)
+      .setCategory(Notification.CATEGORY_MESSAGE)
+      .build());
   }
 
   private void showMessage(RemoteMessage message) {
