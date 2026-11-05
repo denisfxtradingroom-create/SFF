@@ -1,0 +1,30 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const read = (path) => readFileSync(new URL("../"+path,import.meta.url),"utf8");
+const service = read("android/push/app/src/main/java/app/sff/signal/SffMessagingService.java");
+const reply = read("android/push/app/src/main/java/app/sff/signal/SffReplyReceiver.java");
+const manifest = read("android/push/app/src/main/AndroidManifest.xml");
+const main = read("android/Main.java");
+const push = read("backend/call-push.mjs");
+const server = read("backend/server.mjs");
+const client = read("client/app.js");
+
+assert(service.includes('"dm_message"'), "Firebase service handles direct messages");
+assert(service.includes('setSmallIcon(R.drawable.mark)'), "System notifications show SFF icon");
+assert(service.includes("RemoteInput.Builder"), "Native notifications support inline reply");
+assert(service.includes("BigTextStyle"), "Notification can preview message text");
+assert(service.includes("VISIBILITY_PRIVATE"), "Lockscreen privacy is respected");
+assert(reply.includes("getResultsFromIntent"), "Android reads reply from RemoteInput");
+assert(reply.includes('"/api/post"'), "Reply goes to existing authenticated SFF endpoint");
+assert(reply.includes('CookieManager.getInstance().getCookie'), "Reply uses existing login");
+assert(reply.includes("setRequestProperty(\"Cookie\",sessionCookie)"), "Only SFF auth cookie is sent");
+assert(reply.includes("connection.getResponseCode()"), "Reply confirms server status");
+assert(reply.includes("pending.finish()"), "Background reply completes broadcast");
+assert(manifest.includes('android:name=".SffReplyReceiver" android:exported="false"'),
+  "Native receiver is non-exported");
+assert(main.includes('openExternal(String url)'),"Jitsi fallback opens native browser");
+assert(main.includes('"meet.jit.si".equals(target.getHost())'),"External links use restricted host");
+assert(push.includes('async function sendMessage('),"Server can send Firebase DM events");
+assert(server.includes("callPush.sendMessage(recipient.uid"),"Saved DMs trigger push");
+assert(client.includes("window.SFFAndroid.openExternal(target)"),"Chat fallback uses native bridge");
+console.log("PASS SFF native message preview, icon, reply security, Jitsi link integration");

@@ -123,5 +123,54 @@ export async function createPushDevices(db) {
     }
     return succeeded > 0;
   }
-  return {register,unregister,forgetSession,list,sendCall};
+  // Private DM push with an optional message preview, as requested by users.
+  // Never include session cookies, passwords or other credentials in FCM data.
+  async function sendMessage(uid, details, sendOverride = null) {
+    if (!pushConfigured()) return false;
+    const room = Number(details?.room);
+    const messageId = Number(details?.messageId);
+    if (!Number.isSafeInteger(room) || room < 1 ||
+        !Number.isSafeInteger(messageId) || messageId < 1)
+      return false;
+    const tokens = await list(uid);
+    if (!tokens.length) return false;
+    const payload = {
+      data: {
+        type: "dm_message",
+        room: String(room),
+        message_id: String(messageId),
+        sender: String(details.sender || "Korisnik").replace(/[\r\n\t]/g, " ").slice(0, 80),
+        body: String(details.body || (details.hasFile ? "Poslat je prilog." : "Nova poruka"))
+          .replace(/[\r\n\t]/g, " ").slice(0, 240),
+      },
+      android: {
+        priority: "high",
+        ttl: 24 * 60 * 60 * 1000,
+        restrictedPackageName: "app.sff.signal",
+      },
+    };
+    let sender;
+    try {
+      const client = sendOverride ? null : await getMessagingClient();
+      sender = sendOverride || client.send.bind(client);
+    } catch (error) {
+      console.warn("[SFF push] DM transport unavailable:", error.message);
+      return false;
+    }
+    let succeeded = 0;
+    for (const token of tokens) {
+      try {
+        await sender({ ...payload, token });
+        succeeded++;
+      } catch (error) {
+        const code = String(error?.code || "");
+        if (code === "messaging/registration-token-not-registered" ||
+            code === "messaging/invalid-registration-token")
+          await db.run("delete from sff_push_devices where token_hash=?", sha256(token));
+        else console.warn("[SFF push] DM delivery failed:", code || "send_error");
+      }
+    }
+    return succeeded > 0;
+  }
+  return {register,unregister,forgetSession,list,sendCall,sendMessage};
 }

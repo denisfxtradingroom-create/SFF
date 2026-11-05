@@ -14,6 +14,10 @@ import java.lang.ref.WeakReference;
 import org.json.JSONObject;
 
 public class Main extends Activity {
+  private static volatile boolean appForeground = false;
+  public static boolean isForeground() { return appForeground; }
+  @Override protected void onResume() { super.onResume(); appForeground = true; }
+  @Override protected void onPause() { appForeground = false; super.onPause(); }
   static WeakReference<Main> current = new WeakReference<>(null);
   static final String PUSH_REGISTER_ACTION = "app.sff.signal.REGISTER_PUSH";
   // Only an authenticated page on our own HTTPS origin receives the token.
@@ -65,6 +69,22 @@ public class Main extends Activity {
       runOnUiThread(() -> {
         if (Build.VERSION.SDK_INT >= 33)
           requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 35);
+      });
+    }
+
+    @JavascriptInterface public void openExternal(String url) {
+      runOnUiThread(() -> {
+        if (web == null || !mainPageLoaded ||
+            !same(Uri.parse(web.getUrl() == null ? "" : web.getUrl()))) return;
+        try {
+          Uri target = Uri.parse(url);
+          if (!"https".equals(target.getScheme()) ||
+              !"meet.jit.si".equals(target.getHost()) ||
+              !target.getPath().matches("/SFF-[a-f0-9]{32}")) return;
+          Intent browser = new Intent(Intent.ACTION_VIEW,target)
+            .addCategory(Intent.CATEGORY_BROWSABLE);
+          startActivity(browser);
+        } catch (Exception ignored) {}
       });
     }
 

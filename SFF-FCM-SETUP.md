@@ -1,3 +1,20 @@
+# SFF 0.9 — Android push, inline reply i pozivi
+
+## Novi režim
+- GitHub branch izdanja: `fix/offline-dm-push-direct-reply-20261105`.
+- Android Firebase APK prikazuje SFF ikonicu, ime pošiljaoca, skraćeni tekst poruke i **Odgovori** direktno u notifikaciji.
+- U payload se šalje samo DM ID, ID poruke, ime pošiljaoca i do 240 karaktera poruke. **Nikada** session cookie, API ključ, lozinka ili Turso token. Android zaključani ekran poštuje uređajna podešavanja privatnosti.
+- Native inline reply preko `/api/post` koristi SFF session cookie i prolazi standardnu proveru članstva u DM sobi. Ako prijava istekne, aplikacija prijavljuje grešku umesto lažne potvrde slanja.
+- SFF Firebase Android modul koristi `app.sff.signal` i verziju `0.9.0`. Potrebna je **instalacija novog APK-a** za ove funkcije; server update sam po sebi ne može dodati sistemsku notifikaciju.
+- Firebase server konfiguracija se učitava samo iz Render env `SFF_FCM_SERVICE_ACCOUNT_JSON`; status se vidi u server logu kroz `push_configured`. Prijavljeni Android token mora biti registrovan i aplikaciji dozvoljene notifikacije.
+- Android **Force stop**, isključena obaveštenja, nedostupni Google Play Services i politike baterije mogu sprečiti prijem; FCM isporuka nije apsolutno garantovana.
+- Pozivi: ugrađeni WebRTC je moguć preko STUN-a gde mreža dozvoljava; bez TURN-a nije pouzdan na svakom paru mreža. Rezervna opcija šalje privatni Jitsi link koji na Androidu otvara spoljašnji browser.
+- Windows aplikacija koristi isti live backend; offline Windows OS push i Windows native inline reply nisu implementirani ovim Android izdanjem.
+- CI APK je **debug-signed**. Ako je prethodni APK drugačije potpisan, Android ga neće instalirati preko stare verzije; možda će biti potrebna deinstalacija stare aplikacije (nalozi/poruke ostaju na Turso serveru, lokalna sesija se gubi). Trajni release signing ključ je potreban za buduće glatke Android nadogradnje.
+- Pre objave produkcije: `npm test`, CI Firebase Android build i test dvije prijavljene osobe na različitim Android uređajima/mrežama. Bezbedna migracija baze kreira samo `sff_push_devices` ako ne postoji.
+
+---
+
 # SFF — Android Firebase Cloud Messaging (FCM): priprema, nije aktivirano
 
 ## Status

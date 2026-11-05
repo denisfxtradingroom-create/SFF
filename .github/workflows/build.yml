@@ -6,6 +6,11 @@ on:
   pull_request:
     paths:
       - 'windows/**'
+      - 'android/**'
+      - 'client/**'
+      - 'backend/**'
+      - 'tests/**'
+      - 'package.json'
       - '.github/workflows/build.yml'
 
 env:
@@ -54,24 +59,29 @@ jobs:
           echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
           echo "/usr/local/lib/android/sdk/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "/usr/local/lib/android/sdk/platform-tools" >> "$GITHUB_PATH"
-      - name: Accept Android SDK licenses and install API 36
+      - name: Install Android SDK 36
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
-          test -f "$ANDROID_HOME/platforms/android-36/android.jar"
-          test -x "$ANDROID_HOME/build-tools/36.0.0/aapt2"
-          test -x "$ANDROID_HOME/build-tools/36.0.0/zipalign"
-      - name: Create temporary signing key
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Verify public Firebase Android config
         run: |
-          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/sff-release.p12" -storetype PKCS12 -storepass sff-build-only -keypass sff-build-only -alias sff -keyalg RSA -keysize 3072 -validity 3650 -dname 'CN=SFF Build,O=SFF,C=RS'
-      - name: Build Android APK
-        shell: pwsh
-        env:
-          SFF_KEY_PASS: sff-build-only
-        run: ./android/build.ps1 -Jdk "$env:JAVA_HOME" -Tools "$env:ANDROID_HOME/build-tools/36.0.0" -Platform "$env:ANDROID_HOME/platforms/android-36" -KeyStore "$env:RUNNER_TEMP/sff-release.p12" -Out "$PWD/SFF-Android.apk" -ServerUrl $env:SFF_PUBLIC_URL
+          python3 - <<'PY'
+          import json
+          f=json.load(open("android/push/app/google-services.json"))
+          assert f["project_info"]["project_id"] == "sff-36587"
+          assert any(x.get("client_info",{}).get("android_client_info",{}).get("package_name")=="app.sff.signal" for x in f["client"])
+          print("Firebase Android project and package verified")
+          PY
+      - name: Build Firebase Android APK with real native DM push and replies
+        run: gradle --no-daemon -p android/push :app:assembleDebug
+      - name: Prepare SFF Android installer
+        run: cp android/push/app/build/outputs/apk/debug/app-debug.apk SFF-Android-FCM-0.9.0.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: SFF-Android
-          path: SFF-Android.apk
+          name: SFF-Android-FCM
+          path: SFF-Android-FCM-0.9.0.apk
           retention-days: 30
