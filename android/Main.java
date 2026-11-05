@@ -16,7 +16,16 @@ import org.json.JSONObject;
 public class Main extends Activity {
   private static volatile boolean appForeground = false;
   public static boolean isForeground() { return appForeground; }
-  @Override protected void onResume() { super.onResume(); appForeground = true; }
+  @Override protected void onResume() {
+    super.onResume();
+    appForeground = true;
+    // Re-enroll after resuming from the background or after Android restored
+    // the process; JavaScript may have reinitialized while FCM was idle.
+    if (web != null && mainPageLoaded) {
+      String token=getSharedPreferences("sff_push",0).getString("fcm_token",null);
+      if (token != null && !token.isEmpty()) deliverPushToken(token);
+    }
+  }
   @Override protected void onPause() { appForeground = false; super.onPause(); }
   static WeakReference<Main> current = new WeakReference<>(null);
   static final String PUSH_REGISTER_ACTION = "app.sff.signal.REGISTER_PUSH";
