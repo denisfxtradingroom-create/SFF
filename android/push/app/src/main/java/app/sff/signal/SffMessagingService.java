@@ -121,6 +121,8 @@ public final class SffMessagingService extends FirebaseMessagingService {
   }
 
   private void showCall(RemoteMessage message) {
+    // The foreground activity already shows the call overlay and controls.
+    if (Main.isForeground()) return;
     final String room = message.getData().get("room");
     final String kind = message.getData().get("kind");
     if (room == null || !room.matches("[1-9][0-9]{0,15}")) return;
@@ -139,7 +141,8 @@ public final class SffMessagingService extends FirebaseMessagingService {
     Notification.Builder builder = new Notification.Builder(this,CALL_CHANNEL)
       .setSmallIcon(R.drawable.mark)
       .setContentTitle(video ? "Dolazni SFF video poziv" : "Dolazni SFF poziv")
-      .setContentText("Otvori SFF da se javiš.")
+      .setContentText((message.getData().get("name") == null
+        ? "Prijatelj" : message.getData().get("name")) + " te zove. Otvori SFF da se javiš.")
       .setContentIntent(openApp(4190))
       .setAutoCancel(true)
       .setCategory(Notification.CATEGORY_CALL)
