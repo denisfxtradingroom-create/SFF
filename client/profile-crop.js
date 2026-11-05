@@ -53,13 +53,34 @@
       (slot === "banner" ? "Podesi naslovnu fotografiju" : "Podesi profilnu fotografiju") +
       '</h2><p>Prevuci sliku da odrediš šta se vidi. Zumiraj po želji.</p>' +
       '<div class="sffCropCanvasWrap"></div>' +
-      '<label class="sffCropZoom">Zumiranje <input type="range" min="100" max="300" value="100" step="1"></label>' +
+      '<label class="sffCropZoom">Zumiranje <input type="range" min="100" max="500" value="100" step="1"></label>' +
+      '<div class="sffCropPosition" aria-label="Pomeri kadar">' +
+        '<button type="button" data-crop-move="up" aria-label="Pomeri sliku gore">↑</button>' +
+        '<button type="button" data-crop-move="left" aria-label="Pomeri sliku levo">←</button>' +
+        '<button type="button" data-crop-reset>Centar</button>' +
+        '<button type="button" data-crop-move="right" aria-label="Pomeri sliku desno">→</button>' +
+        '<button type="button" data-crop-move="down" aria-label="Pomeri sliku dole">↓</button>' +
+      '</div>' +
       '<div class="sffCropActions"><button type="button" data-crop-cancel>Otkaži</button>' +
       '<button type="button" data-crop-save class="sffV5Primary">Sačuvaj fotografiju</button></div></div>';
     dialog.querySelector(".sffCropCanvasWrap").append(canvas);
     document.body.append(dialog);
     const slider = dialog.querySelector('input[type="range"]');
     slider.addEventListener("input", () => { zoom = Number(slider.value) / 100; draw(); });
+    dialog.querySelectorAll("[data-crop-move]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const step = Math.round(Math.min(w, h) * 0.14);
+        const direction = button.dataset.cropMove;
+        if (direction === "up") offY -= step;
+        if (direction === "down") offY += step;
+        if (direction === "left") offX -= step;
+        if (direction === "right") offX += step;
+        draw();
+      });
+    });
+    dialog.querySelector("[data-crop-reset]").addEventListener("click", () => {
+      zoom = 1; offX = 0; offY = 0; slider.value = "100"; draw();
+    });
     let pointer = null;
     canvas.addEventListener("pointerdown", (event) => {
       if (!event.isPrimary) return;
