@@ -50,8 +50,11 @@ public final class SffReplyReceiver extends BroadcastReceiver {
         // WebView's persisted cookie is scoped to the production SFF origin.
         // Server validates the session AND the recipient's DM room membership.
         String cookie = CookieManager.getInstance().getCookie(origin + "/");
-        if (cookie == null || !cookie.matches("(?s).*(?:^|;\\s*)sff=[a-f0-9]{64}(?:;|$).*"))
-          throw new SecurityException("No active SFF login");
+        if (cookie == null) throw new SecurityException("No active SFF login");
+        java.util.regex.Matcher match=java.util.regex.Pattern.compile(
+          "(?:^|;\\s*)(sff=[a-f0-9]{64})(?:;|$)").matcher(cookie);
+        if (!match.find()) throw new SecurityException("No active SFF session");
+        String sessionCookie=match.group(1);
         URL endpoint = new URL(origin + "/api/post");
         HttpURLConnection connection = (HttpURLConnection)endpoint.openConnection();
         try {
@@ -62,7 +65,7 @@ public final class SffReplyReceiver extends BroadcastReceiver {
           connection.setDoOutput(true);
           connection.setRequestProperty("Content-Type","application/json");
           connection.setRequestProperty("Origin",origin);
-          connection.setRequestProperty("Cookie",cookie);
+          connection.setRequestProperty("Cookie",sessionCookie);
           byte[] payload = new JSONObject().put("room",room)
             .put("body",text).toString().getBytes(StandardCharsets.UTF_8);
           connection.setFixedLengthStreamingMode(payload.length);
