@@ -93,6 +93,7 @@ export async function createPushDevices(db) {
         type: "call_incoming",
         room: String(details.room),
         kind: details.kind === "video" ? "video" : "audio",
+        name: String(details.name || "Korisnik").replace(/[\r\n\t]/g," ").slice(0,80),
         created_at: String(Date.now()),
       },
       android: {
