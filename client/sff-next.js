@@ -61,8 +61,8 @@
           '</div>' +
           '<div class="sffV5Identity">' +
             '<div class="sffV5BigAvatar">' +
-              '<span class="sffV5AvatarClip">' +
-                (photo(p, "avatar") || '<span>' + escape((p.name || "?").slice(0, 1).toUpperCase()) + '</span>') +
+              '<span class="sffV5AvatarClip" style="position:absolute;inset:0;display:block;width:100%;height:100%;overflow:hidden;contain:paint;border-radius:inherit">' +
+                (p.avatar ? '<img alt="Profilna slika" style="position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:cover!important;object-position:center!important;display:block!important;border-radius:inherit!important" src="/art/user/' + Number(p.id) + '/avatar' + (photoRevisions.has(p.id + ":avatar") ? '?v=' + photoRevisions.get(p.id + ":avatar") : '') + '">' : '<span>' + escape((p.name || "?").slice(0, 1).toUpperCase()) + '</span>') +
               '</span>' +
               '<span class="sffV5Dot ' + statusClass(p) + '"></span>' +
             '</div>' +
